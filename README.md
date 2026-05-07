@@ -129,9 +129,16 @@ const result = compose(wf.id);
 
 | 函数 | 说明 |
 |------|------|
-| `compose(workflowId, options?)` | 生成 ComfyUI API 格式的 JSON |
+| `compose(workflowId, options?)` | 生成 ComfyUI 工作流 JSON，支持 API 和 UI 两种格式 |
 | `validateWorkflow(workflowId, options?)` | 校验工作流完整性（缺失连接、孤立节点等） |
 | `workflowToCode(workflowId, options?)` | 将工作流反向生成为 TypeScript 代码 |
+
+### 格式检测与导入
+
+| 函数 | 说明 |
+|------|------|
+| `detectFormat(json)` | 自动检测 JSON 格式类型（api/ui/blueprint/unknown） |
+| `importFromJSON(handle, json, options?)` | 从 ComfyUI JSON 导入工作流，支持三种格式 |
 
 ### 节点校验
 
@@ -151,6 +158,76 @@ const result = compose(wf.id);
 | `hasPreset(nodeType)` | 检查预设是否存在 |
 | `getRegistry()` | 获取全局预设注册表实例 |
 | `createRegistry()` | 创建独立的预设注册表（用于测试隔离） |
+
+## 多格式导入/导出
+
+### 支持的格式
+
+| 格式 | 检测特征 | 用途 |
+|------|---------|------|
+| **API 格式** | `{ "1": { class_type, inputs } }` | ComfyUI API 执行格式 |
+| **UI 格式** | `{ nodes: [], links: [[]] }` | ComfyUI 界面工作流（可导入编辑器） |
+| **Blueprint** | `{ definitions: { subgraphs } }` | 本库的原生格式 |
+
+### 导入工作流
+
+```typescript
+import { createWorkflow, importFromJSON, detectFormat } from '@imaginerlabs/comfyui-agent-helper';
+
+const wf = createWorkflow();
+
+// 自动检测格式并导入
+const result = importFromJSON(wf.id, workflowJson);
+console.log(result.detectedFormat); // 'api' | 'ui' | 'blueprint' | 'unknown'
+console.log(result.importedStepIds); // ['imported_workflow']
+
+// 手动指定格式
+importFromJSON(wf.id, workflowJson, { format: 'ui' });
+
+// 自定义 Step ID 和名称
+importFromJSON(wf.id, workflowJson, {
+  stepId: 'my_custom_step',
+  stepName: 'My Custom Step',
+});
+```
+
+### 导出工作流
+
+```typescript
+import { compose } from '@imaginerlabs/comfyui-agent-helper';
+
+// 默认只输出 API 格式
+const apiResult = compose(wf.id);
+// { apiFormat: { "1": { class_type, inputs }, ... } }
+
+// 输出 UI 格式（可直接导入 ComfyUI 编辑器）
+const uiResult = compose(wf.id, { outputFormat: 'ui' });
+// { uiFormat: { nodes: [...], links: [...], ... } }
+
+// 同时输出两种格式
+const bothResult = compose(wf.id, { outputFormat: 'both' });
+// { apiFormat: {...}, uiFormat: {...} }
+```
+
+### 完整往返转换
+
+导入的工作流可以完整保留所有参数，导出后与原始 JSON 一致：
+
+```typescript
+import { createWorkflow, importFromJSON, compose } from '@imaginerlabs/comfyui-agent-helper';
+
+// 导入 UI 格式工作流
+const wf = createWorkflow();
+importFromJSON(wf.id, originalUIJson);
+
+// 导出 UI 格式
+const result = compose(wf.id, { outputFormat: 'ui' });
+
+// widgets_values 完整保留（包括 control_after_generate 等隐式参数）
+const ksampler = result.uiFormat!.nodes.find(n => n.type === 'KSampler');
+console.log(ksampler?.widgets_values);
+// [123456, 'randomize', 20, 7, 'euler', 'normal', 1] — 完整保留
+```
 
 ## 从 Blueprint JSON 导入
 
@@ -244,7 +321,15 @@ import type {
   CrossStepLink,
   ComfyAPINode,
   ComfyUIWorkflow,
+  ComfyUIFormat,
   WorkflowHandle,
+} from '@imaginerlabs/comfyui-agent-helper';
+
+// 导入类型
+import type {
+  FormatType,
+  ImportOptions,
+  ImportResult,
 } from '@imaginerlabs/comfyui-agent-helper';
 
 // 预设类型

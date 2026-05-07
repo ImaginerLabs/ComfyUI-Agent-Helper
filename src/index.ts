@@ -17,10 +17,14 @@ export type {
   ComfyUIWorkflow,
   WorkflowHandle,
   WorkflowOptions,
+  FormatType,
+  ImportOptions,
+  ImportResult,
 } from './types.js';
 
 // Workflow API
-export { createWorkflow, getWorkflowSummary, resetWorkflow, importFromJSON } from './workflow/workflow.js';
+export { createWorkflow, getWorkflowSummary, resetWorkflow } from './workflow/workflow.js';
+export { importFromJSON, detectFormat } from './workflow/import.js';
 export { workflowToCode } from './codegen/codegen.js';
 export type { CodegenOptions } from './codegen/codegen.js';
 export type { Workflow, WorkflowSummary } from './workflow/types.js';

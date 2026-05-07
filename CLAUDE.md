@@ -73,14 +73,20 @@ src/
 ├── index.ts              # 公共 API 导出（类型 + 函数）
 ├── types.ts              # 所有公共类型（StepDefinition, ComfyUIWorkflow 等）
 ├── workflow/
-│   ├── workflow.ts       # create/get/reset/importFromJSON, 内存存储 Map
+│   ├── workflow.ts       # create/get/reset, 内存存储 Map
+│   ├── import.ts         # importFromJSON 统一入口
+│   ├── format-detector.ts # detectFormat 格式检测
 │   ├── connections.ts    # connectSteps / disconnectSteps（幂等）
-│   └── types.ts          # Workflow 内部结构 + WorkflowSummary
+│   ├── types.ts          # Workflow 内部结构 + WorkflowSummary
+│   └── import/
+│       ├── blueprint.ts  # Blueprint 格式导入
+│       ├── ui-format.ts  # UI 格式导入
+│       └── api-format.ts # API 格式导入
 ├── step/
 │   ├── step-manager.ts   # addStep / updateStep / removeStep / getStep
 │   └── types.ts
 ├── compose/
-│   ├── composer.ts       # compose(): 核心组合引擎，生成 API 格式 JSON
+│   ├── composer.ts       # compose(): 核心组合引擎，支持 API 和 UI 格式输出
 │   ├── id-resolver.ts    # Step 内 nodeId → 全局唯一 ID（格式: stepId:nodeId）
 │   ├── layout.ts         # 自动布局（简单水平网格排列）
 │   └── types.ts          # IDMapping, ComposeContext
@@ -103,7 +109,27 @@ Agent 调用 compose()     →  组合引擎处理:
   1. ID Resolver 为所有节点分配全局唯一 ID
   2. 收集所有节点 widgets → inputs 静态参数
   3. 处理 internalLinks + crossLinks → 连线引用 [globalId, slotIndex]
-  4. 产出 apiFormat: Record<string, ComfyAPINode>
+  4. 产出 apiFormat 或 uiFormat
+```
+
+### 多格式导入/导出
+
+支持三种 ComfyUI 格式：
+
+| 格式 | 检测特征 | 用途 |
+|------|---------|------|
+| API | `{ "1": { class_type, inputs } }` | API 执行格式 |
+| UI | `{ nodes: [], links: [[]] }` | 编辑器工作流 |
+| Blueprint | `{ definitions: { subgraphs } }` | 本库原生格式 |
+
+```typescript
+// 导入（自动检测格式）
+importFromJSON(handle, json);
+
+// 导出 UI 格式（可直接导入 ComfyUI 编辑器）
+compose(wf.id, { outputFormat: 'ui' });
+
+// 往返转换：导入 → 导出，完整保留 widgets_values
 ```
 
 ### 关键设计决策
@@ -113,7 +139,13 @@ Agent 调用 compose()     →  组合引擎处理:
 - **内存存储**（Map），不持久化 — 工作流在单次会话中构建
 - **ID 命名空间隔离**：Step 内部 ID 自由命名，组合时自动加 `stepId:` 前缀
 - **连线覆盖 Widget**：同一 inputName 同时有 widget 值和连线时，连线优先
+- **往返转换保留原始数据**：`widgets_values` 数组完整保留，包括隐式参数
 
 ### compose() 签名注意事项
 
 `compose()` 接受 `workflowId: string`，不是 `WorkflowHandle` 对象。调用时传 `compose(wf.id)`。
+
+`compose()` 的 `outputFormat` 选项：
+- `'api'`（默认）：只输出 API 格式
+- `'ui'`：只输出 UI 格式（可直接导入 ComfyUI 编辑器）
+- `'both'`：同时输出两种格式

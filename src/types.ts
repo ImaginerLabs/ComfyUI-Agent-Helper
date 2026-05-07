@@ -57,6 +57,12 @@ export interface StepNode {
    * COMBO 类型值从预定义选项中选择，如 sampler_name: "euler"
    */
   widgets?: Record<string, unknown>;
+  /**
+   * 原始 widgets_values 数组（用于往返转换）。
+   * 从 UI 格式导入时保留原始数组顺序，导出时按此顺序输出。
+   * 包含 control_after_generate 等隐式参数。
+   */
+  widgets_values?: unknown[];
   /** 节点标题 */
   title?: string;
   /** 节点在 Step 内部画布的相对位置 */
@@ -173,7 +179,7 @@ export interface ComfyUIFormat {
   last_node_id: number;
   last_link_id: number;
   nodes: UINode[];
-  links: (number | string)[];
+  links: (number | string)[][];
   groups: UIGroup[];
   config: Record<string, unknown>;
   extra: Record<string, unknown>;
@@ -213,4 +219,39 @@ export interface WorkflowHandle {
 
 export interface WorkflowOptions {
   name?: string;
+}
+
+// ---------------------------------------------------------------------------
+// 格式检测与导入
+// ---------------------------------------------------------------------------
+
+/**
+ * ComfyUI 工作流格式类型
+ */
+export type FormatType = 'api' | 'ui' | 'blueprint' | 'unknown';
+
+/**
+ * 导入选项
+ */
+export interface ImportOptions {
+  /** 导入格式，不指定则自动检测 */
+  format?: FormatType;
+  /** 导入为单个 Step（适用于 UI/API 格式），默认 true */
+  asSingleStep?: boolean;
+  /** 单 Step 模式下的 Step ID */
+  stepId?: string;
+  /** 单 Step 模式下的 Step 名称 */
+  stepName?: string;
+}
+
+/**
+ * 导入结果
+ */
+export interface ImportResult {
+  /** 导入的 Step ID 列表 */
+  importedStepIds: string[];
+  /** 格式检测结果 */
+  detectedFormat: FormatType;
+  /** 导入过程中的警告 */
+  warnings?: string[];
 }
