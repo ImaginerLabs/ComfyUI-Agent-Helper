@@ -120,12 +120,8 @@ export const KSampler: NodePreset = {
     },
   ],
 
-  // === UI 层元数据 ===
-  uiMetadata: {
-    size: [320, 480],
-    properties: {
-      cnr_id: 'comfy-core',
-    },
+  // === UI 层数据 ===
+  ui: {
     controlWidgets: [
       {
         name: 'seed_control_after_generate',

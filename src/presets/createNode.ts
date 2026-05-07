@@ -3,7 +3,7 @@
  */
 
 import type { StepNode } from '../types.js';
-import type { NodePreset, WidgetSpec, InputPortSpec } from './types.js';
+import type { NodePreset, WidgetSpec, InputPortSpec, UIMetadata } from './types.js';
 import { getPreset } from './registry.js';
 
 // ---------------------------------------------------------------------------
@@ -28,7 +28,7 @@ export interface CreateNodeOptions {
   title?: string;
   /** 是否校验参数（默认 true） */
   validate?: boolean;
-  /** 额外的节点属性（直接设置到节点上） */
+  /** 额外的节点属性（包括 UI 层数据如 size, properties 等） */
   extra?: Record<string, unknown>;
 }
 
@@ -103,7 +103,24 @@ export function createNodeFromPreset(
     node.title = options.title;
   }
 
-  // 5. 添加额外属性
+  // 5. 注入 UI 层数据
+  const uiData = getUIData(preset);
+  if (uiData) {
+    if (uiData.size) {
+      node.size = uiData.size;
+    }
+    if (uiData.properties) {
+      node.properties = { ...uiData.properties };
+    }
+    // 其他未知 UI 字段通过 StepNode 的索引签名传递
+    for (const [key, value] of Object.entries(uiData)) {
+      if (key !== 'size' && key !== 'properties' && key !== 'controlWidgets') {
+        (node as Record<string, unknown>)[key] = value;
+      }
+    }
+  }
+
+  // 6. 添加额外属性
   if (options?.extra) {
     Object.assign(node, options.extra);
   }
@@ -117,6 +134,13 @@ export function createNodeFromPreset(
 // ---------------------------------------------------------------------------
 // 辅助函数
 // ---------------------------------------------------------------------------
+
+/**
+ * 获取预设的 UI 层数据（支持向后兼容）
+ */
+function getUIData(preset: NodePreset): UIMetadata | undefined {
+  return preset.ui ?? preset.uiMetadata;
+}
 
 /**
  * 生成节点 ID
@@ -136,7 +160,8 @@ function buildWidgetsValues(
   warnings: string[]
 ): unknown[] {
   const result: unknown[] = [];
-  const controlWidgets = preset.uiMetadata?.controlWidgets ?? [];
+  const uiData = getUIData(preset);
+  const controlWidgets = uiData?.controlWidgets ?? [];
 
   // 1. 处理 isWidget 的输入端口
   const widgetInputs = preset.inputs.filter((input) => input.isWidget);

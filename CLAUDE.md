@@ -117,6 +117,7 @@ src/
 2. **信息保留**：导入时保留所有信息，导出时按需丢弃
 3. **版本感知**：UI 格式区分 v0.4 和 v1.0
 4. **往返转换**：`widgets_values` 和元数据完整保留
+5. **UI 层支持**：预设的 `ui` 字段定义 `controlWidgets`，`size`/`properties` 等由 Agent 动态传入
 
 ## API 使用
 
@@ -127,6 +128,7 @@ import {
   detectFormat,
   createUnifiedWorkflow,
   validateWorkflow,
+  createNodeFromPreset,
 } from '@imaginerlabs/comfyui-agent-helper';
 
 // 导入工作流（自动检测格式）
@@ -141,4 +143,15 @@ const validation = validateWorkflow(workflow);
 
 // 创建新工作流
 const newWorkflow = createUnifiedWorkflow();
+
+// 基于预设创建节点（支持 UI 层数据）
+const { node } = createNodeFromPreset('KSampler', 
+  { seed: 12345, steps: 30, cfg: 8.5 },
+  { 
+    extra: { 
+      size: [400, 500],           // UI 层：节点尺寸
+      properties: { cnr_id: 'custom-node' }  // UI 层：节点属性
+    } 
+  }
+);
 ```

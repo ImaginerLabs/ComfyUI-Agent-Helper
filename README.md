@@ -207,8 +207,9 @@ const { node: node3 } = createNodeFromPreset('KSampler', { seed: 12345 }, {
   pos: [100, 200],
   title: 'My KSampler',
   extra: {
-    customField: 'custom value',  // 自定义字段
-    properties: { color: '#ff0000' },
+    size: [400, 500],           // UI 层：节点尺寸
+    properties: { cnr_id: 'custom-node' },  // UI 层：节点属性
+    customField: 'custom value',  // 其他自定义字段
   },
 });
 
@@ -226,6 +227,7 @@ workflow.steps.set('step1', {
 - 参数类型校验（INT/FLOAT/STRING/BOOLEAN/COMBO）
 - 范围校验（min/max）
 - 生成正确顺序的 `widgets_values` 数组
+- 支持 UI 层数据（`size`、`properties` 等）通过 `extra` 传入
 
 ### 注册自定义节点预设
 
@@ -284,6 +286,8 @@ import type {
 // 预设类型
 import type {
   NodePreset,
+  UIMetadata,
+  ControlWidgetSpec,
   ValidationMode,
 } from '@imaginerlabs/comfyui-agent-helper';
 ```

@@ -164,8 +164,9 @@ export interface ControlWidgetSpec {
 }
 
 /**
- * UI 层元数据
+ * UI 层数据
  * 包含 UI 格式特有的节点属性
+ * 支持任意未知字段以容纳 ComfyUI 扩展属性
  */
 export interface UIMetadata {
   /** 默认节点尺寸 [width, height] */
@@ -178,6 +179,8 @@ export interface UIMetadata {
   };
   /** 控件参数列表（如 control_after_generate） */
   controlWidgets?: ControlWidgetSpec[];
+  /** 其他 UI 层未知字段 */
+  [key: string]: unknown;
 }
 
 /**
@@ -211,8 +214,11 @@ export interface NodePreset {
   /** 输出端口列表 */
   outputs: OutputPortSpec[];
 
-  // === UI 层元数据 ===
+  // === UI 层数据 ===
   /** UI 格式特有的节点属性 */
+  ui?: UIMetadata;
+
+  /** @deprecated 使用 ui 替代 */
   uiMetadata?: UIMetadata;
 
   // === 元数据 ===

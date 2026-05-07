@@ -52,7 +52,7 @@ describe('createNodeFromPreset', () => {
       const preset = getPreset('KSampler');
       const widgetInputCount = preset!.inputs.filter((i) => i.isWidget).length;
       const widgetCount = preset!.widgets.length;
-      const controlWidgetCount = preset!.uiMetadata?.controlWidgets?.length ?? 0;
+      const controlWidgetCount = preset!.ui?.controlWidgets?.length ?? 0;
       const expectedLength = widgetInputCount + widgetCount + controlWidgetCount;
       expect(node.widgets_values).toHaveLength(expectedLength);
 
@@ -184,6 +184,66 @@ describe('createNodeFromPreset', () => {
 
       expect(node.type).toBe('KSampler');
       expect(node.widgets?.seed).toBe(12345);
+    });
+  });
+
+  describe('UI 层支持', () => {
+    it('应该支持新的 ui 字段', () => {
+      const preset = getPreset('KSampler');
+      expect(preset?.ui).toBeDefined();
+      expect(preset?.ui?.controlWidgets).toBeDefined();
+      expect(preset?.ui?.controlWidgets?.length).toBeGreaterThan(0);
+    });
+
+    it('controlWidgets 应该正确影响 widgets_values 顺序', () => {
+      const { node } = createNodeFromPreset('KSampler', {
+        seed: 12345,
+        steps: 30,
+        cfg: 8.5,
+      });
+
+      // widgets_values 应包含 controlWidget 值
+      expect(node.widgets_values?.[1]).toBe('randomize'); // seed_control_after_generate
+    });
+
+    it('没有定义 ui 的节点应该正常工作', () => {
+      const { node, warnings } = createNodeFromPreset('CheckpointLoaderSimple', {
+        ckpt_name: 'test.safetensors',
+      });
+
+      expect(node.type).toBe('CheckpointLoaderSimple');
+      // 应该没有 UI 相关错误
+      expect(warnings?.every((w) => !w.includes('ui'))).toBe(true);
+    });
+
+    it('应该支持通过 extra 传入 UI 层数据', () => {
+      const { node } = createNodeFromPreset(
+        'KSampler',
+        { seed: 12345 },
+        {
+          extra: {
+            size: [400, 500],
+            properties: { cnr_id: 'custom-node' },
+          },
+        }
+      );
+
+      expect(node.size).toEqual([400, 500]);
+      expect(node.properties?.cnr_id).toBe('custom-node');
+    });
+
+    it('应该支持 UI 层未知字段', () => {
+      const { node } = createNodeFromPreset(
+        'KSampler',
+        { seed: 12345 },
+        {
+          extra: {
+            custom_ui_field: 'custom_value',
+          },
+        }
+      );
+
+      expect(node.custom_ui_field).toBe('custom_value');
     });
   });
 });
