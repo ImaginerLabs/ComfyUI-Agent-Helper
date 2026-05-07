@@ -1,6 +1,7 @@
-import type { ComfyUIWorkflow, ComfyAPINode, ComfyUIFormat, UINode, UIInput, UIOutput } from '../types.js';
+import type { ComfyUIWorkflow, ComfyAPINode, ComfyUIFormat, UINode, UIInput, UIOutput, StepNode } from '../types.js';
 import type { ValidationMode } from '../presets/types.js';
 import type { ValidationIssue } from '../validate/types.js';
+import type { Workflow } from '../workflow/types.js';
 import { getWorkflow } from '../workflow/workflow.js';
 import { getPreset } from '../presets/registry.js';
 import { validateInputType } from '../validate/node-validator.js';
@@ -45,14 +46,12 @@ export function compose(workflowId: string, options?: ComposeOptions): ComposeRe
  * 连线信息，用于构建 UI 格式
  */
 interface LinkInfo {
-  /** globalId -> UI nodeId */
+  /** globalId -> original nodeId */
   nodeIdMap: Map<string, number>;
   /** 连线列表 */
   links: LinkData[];
   /** 下一个 link ID */
   nextLinkId: number;
-  /** 下一个 node ID */
-  nextNodeId: number;
 }
 
 interface LinkData {
@@ -68,10 +67,10 @@ interface LinkData {
  * 构建 API 格式，同时收集连线信息
  */
 function buildAPIFormat(
-  wf: ReturnType<typeof getWorkflow>,
+  wf: Workflow,
   options?: ComposeOptions
 ): { apiFormat: Record<string, ComfyAPINode>; warnings: ValidationIssue[]; linkInfo: LinkInfo } {
-  const mapping = buildIdMapping(wf!);
+  const mapping = buildIdMapping(wf);
   const apiFormat: Record<string, ComfyAPINode> = {};
   const warnings: ValidationIssue[] = [];
   const linkMode = options?.validateLinks ?? 'none';
@@ -80,11 +79,10 @@ function buildAPIFormat(
     nodeIdMap: new Map(),
     links: [],
     nextLinkId: 1,
-    nextNodeId: 1,
   };
 
-  // 1. 收集所有节点：widgets → inputs
-  for (const [stepId, step] of wf!.steps) {
+  // 1. 收集所有节点
+  for (const [stepId, step] of wf.steps) {
     for (const node of step.nodes) {
       const globalId = resolveId(mapping, stepId, node.id);
       if (!globalId) {
@@ -93,10 +91,36 @@ function buildAPIFormat(
         );
       }
 
-      // 分配 UI node ID
-      linkInfo.nodeIdMap.set(globalId, linkInfo.nextNodeId++);
+      // 使用原始节点 ID（如果有）
+      const originalId = node._originalId ?? parseInt(node.id, 10);
+      linkInfo.nodeIdMap.set(globalId, originalId);
 
+      // 从节点提取 widgets 作为 inputs
       const inputs: Record<string, unknown> = {};
+
+      // 如果有 widgets_values，尝试映射到具名参数
+      if (node.widgets_values && node.widgets_values.length > 0) {
+        const preset = getPreset(node.type);
+        if (preset) {
+          // 收集所有 widget 参数名
+          const widgetNames: string[] = [];
+          for (const inp of preset.inputs) {
+            if (inp.isWidget) {
+              widgetNames.push(inp.name);
+            }
+          }
+          for (const w of preset.widgets) {
+            widgetNames.push(w.name);
+          }
+
+          // 映射 widgets_values 到具名参数
+          for (let i = 0; i < Math.min(node.widgets_values.length, widgetNames.length); i++) {
+            inputs[widgetNames[i]] = node.widgets_values[i];
+          }
+        }
+      }
+
+      // 也支持 widgets 对象
       if (node.widgets) {
         for (const [key, value] of Object.entries(node.widgets)) {
           inputs[key] = value;
@@ -111,7 +135,7 @@ function buildAPIFormat(
   }
 
   // 2. 处理内部连线
-  for (const [stepId, step] of wf!.steps) {
+  for (const [stepId, step] of wf.steps) {
     for (const link of step.internalLinks) {
       const [fromNodeId, slotIndex] = link.from;
       const [toNodeId, inputName] = link.to;
@@ -168,8 +192,9 @@ function buildAPIFormat(
 
       targetNode.inputs[inputName] = [globalFromId, slotIndex];
 
-      // 记录连线信息
-      const linkType = getLinkType(apiFormat, globalFromId, slotIndex);
+      // 记录连线信息 - 从原始节点获取类型
+      const fromNode = step.nodes.find((n) => n.id === fromNodeId);
+      const linkType = fromNode?.outputs?.[slotIndex]?.type ?? getLinkType(apiFormat, globalFromId, slotIndex);
       linkInfo.links.push({
         linkId: linkInfo.nextLinkId++,
         sourceGlobalId: globalFromId,
@@ -182,9 +207,9 @@ function buildAPIFormat(
   }
 
   // 3. 处理跨 Step 连线
-  for (const crossLink of wf!.crossLinks) {
-    const fromStep = wf!.steps.get(crossLink.from.stepId);
-    const toStep = wf!.steps.get(crossLink.to.stepId);
+  for (const crossLink of wf.crossLinks) {
+    const fromStep = wf.steps.get(crossLink.from.stepId);
+    const toStep = wf.steps.get(crossLink.to.stepId);
 
     if (!fromStep) {
       throw new Error(
@@ -260,8 +285,10 @@ function buildAPIFormat(
 
     targetNode.inputs[inputName] = [globalFromId, slotIndex];
 
-    // 记录连线信息
-    const linkType = outputPort.type || getLinkType(apiFormat, globalFromId, slotIndex);
+    // 记录连线信息 - 从原始节点或端口获取类型
+    const sourceStep = wf.steps.get(crossLink.from.stepId);
+    const sourceNode = sourceStep?.nodes.find(n => n.id === sourceNodeId);
+    const linkType = outputPort.type ?? sourceNode?.outputs?.[slotIndex]?.type ?? getLinkType(apiFormat, globalFromId, slotIndex);
     linkInfo.links.push({
       linkId: linkInfo.nextLinkId++,
       sourceGlobalId: globalFromId,
@@ -276,62 +303,39 @@ function buildAPIFormat(
 }
 
 /**
- * 构建 UI 格式
+ * 构建 UI 格式 - 直接还原原始节点数据
  */
 function buildUIFormat(
-  wf: ReturnType<typeof getWorkflow>,
+  wf: Workflow,
   apiFormat: Record<string, ComfyAPINode>,
   linkInfo: LinkInfo
 ): ComfyUIFormat {
   const nodes: UINode[] = [];
   const links: (number | string)[][] = [];
 
-  // 1. 转换节点
-  for (const [globalId, apiNode] of Object.entries(apiFormat)) {
+  // 1. 转换节点 - 直接使用原始节点数据
+  for (const [globalId] of Object.entries(apiFormat)) {
+    const originalNode = getOriginalNode(wf, globalId);
     const uiNodeId = linkInfo.nodeIdMap.get(globalId)!;
 
-    // 获取节点位置
-    const position = getNodePosition(wf, globalId);
-
-    // 尝试从原始节点获取 widgets_values（往返转换）
-    const originalWidgetsValues = getOriginalWidgetsValues(wf, globalId);
-
-    // 如果有原始 widgets_values，使用它；否则从 apiNode 提取
-    const widgetsValues = originalWidgetsValues ?? extractWidgetsValues(apiNode);
-
-    // 构建 inputs/outputs
-    const preset = getPreset(apiNode.class_type);
-    const inputs: UIInput[] = [];
-    const outputs: UIOutput[] = [];
-
-    if (preset) {
-      for (const inp of preset.inputs) {
-        inputs.push({
-          name: inp.name,
-          type: inp.type,
-          link: undefined,
-        });
-      }
-      for (const out of preset.outputs) {
-        outputs.push({
-          name: out.name,
-          type: out.type,
-          links: [],
-          slot_index: out.slotIndex,
-        });
-      }
+    if (originalNode) {
+      // 直接使用原始节点数据，只更新 id
+      const uiNode: UINode = {
+        ...originalNode,
+        id: uiNodeId,
+      };
+      nodes.push(uiNode);
+    } else {
+      // 新创建的节点，使用默认值
+      const apiNode = apiFormat[globalId];
+      const uiNode: UINode = {
+        id: uiNodeId,
+        type: apiNode.class_type,
+        pos: [0, 0],
+        widgets_values: extractWidgetsValues(apiNode),
+      };
+      nodes.push(uiNode);
     }
-
-    const uiNode: UINode = {
-      id: uiNodeId,
-      type: apiNode.class_type,
-      pos: [position.x, position.y],
-      inputs: inputs.length > 0 ? inputs : undefined,
-      outputs: outputs.length > 0 ? outputs : undefined,
-      widgets_values: widgetsValues.length > 0 ? widgetsValues : undefined,
-    };
-
-    nodes.push(uiNode);
   }
 
   // 2. 构建连线
@@ -369,41 +373,37 @@ function buildUIFormat(
     }
   }
 
+  // 3. 使用原始工作流元数据
+  const meta = wf._meta;
+
   return {
-    last_node_id: linkInfo.nextNodeId - 1,
-    last_link_id: linkInfo.nextLinkId - 1,
+    id: meta?.id,
+    revision: meta?.revision,
+    last_node_id: meta?.last_node_id ?? linkInfo.nodeIdMap.size,
+    last_link_id: meta?.last_link_id ?? linkInfo.nextLinkId - 1,
     nodes,
     links,
-    groups: [],
-    config: {},
-    extra: {},
-    version: 0.4,
+    groups: (meta?.groups as ComfyUIFormat['groups']) ?? [],
+    config: meta?.config ?? {},
+    extra: meta?.extra ?? {},
+    version: meta?.version ?? 0.4,
   };
 }
 
 /**
- * 从原始节点获取 widgets_values（用于往返转换）
+ * 获取原始节点数据
  */
-function getOriginalWidgetsValues(
-  wf: ReturnType<typeof getWorkflow>,
-  globalId: string
-): unknown[] | null {
-  // 解析 globalId 获取 stepId 和 nodeId
+function getOriginalNode(wf: Workflow, globalId: string): StepNode | null {
   const parts = globalId.split(':');
   if (parts.length < 2) return null;
 
   const stepId = parts[0];
   const nodeId = parts.slice(1).join(':');
 
-  const step = wf!.steps.get(stepId);
+  const step = wf.steps.get(stepId);
   if (!step) return null;
 
-  const node = step.nodes.find((n) => n.id === nodeId);
-  if (node?.widgets_values) {
-    return node.widgets_values;
-  }
-
-  return null;
+  return step.nodes.find((n) => n.id === nodeId) ?? null;
 }
 
 /**
@@ -431,38 +431,6 @@ function extractWidgetsValues(apiNode: ComfyAPINode): unknown[] {
 }
 
 /**
- * 获取节点位置
- */
-function getNodePosition(
-  wf: ReturnType<typeof getWorkflow>,
-  globalId: string
-): { x: number; y: number } {
-  // 解析 globalId 获取 stepId 和 nodeId
-  const parts = globalId.split(':');
-  if (parts.length < 2) return { x: 0, y: 0 };
-
-  const stepId = parts[0];
-  const nodeId = parts.slice(1).join(':');
-
-  const step = wf!.steps.get(stepId);
-  if (!step) return { x: 0, y: 0 };
-
-  const node = step.nodes.find((n) => n.id === nodeId);
-  if (node?.position) {
-    return node.position;
-  }
-
-  // 使用节点在数组中的索引计算位置
-  const nodeIndex = step.nodes.findIndex((n) => n.id === nodeId);
-  const stepIndex = Array.from(wf!.steps.keys()).indexOf(stepId);
-
-  return {
-    x: stepIndex * 400 + (nodeIndex % 4) * 200,
-    y: Math.floor(nodeIndex / 4) * 150,
-  };
-}
-
-/**
  * 获取连线的类型字符串
  */
 function getLinkType(
@@ -470,6 +438,25 @@ function getLinkType(
   globalId: string,
   slot: number
 ): string {
+  // 先尝试从 preset 获取
   const preset = getPreset(apiFormat[globalId]?.class_type ?? '');
-  return preset?.outputs?.[slot]?.type ?? 'UNKNOWN';
+  const type = preset?.outputs?.[slot]?.type;
+  if (type) return type;
+
+  // 尝试从原始节点的 outputs 获取
+  const parts = globalId.split(':');
+  if (parts.length >= 2) {
+    // 这里无法访问 wf，所以返回 UNKNOWN
+    // 实际使用时会在 buildUIFormat 中从原始节点获取
+  }
+
+  return 'UNKNOWN';
+}
+
+/**
+ * 从原始节点获取连线类型
+ */
+function getLinkTypeFromNode(node: StepNode | null, slot: number): string {
+  if (!node?.outputs?.[slot]) return 'UNKNOWN';
+  return node.outputs[slot].type ?? 'UNKNOWN';
 }

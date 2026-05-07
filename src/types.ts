@@ -41,32 +41,37 @@ export interface StepDefinition {
 
 /**
  * Step 内部的节点
+ * 除了 id 和 type 是必需的，其他字段直接从原始 JSON 保留
  */
 export interface StepNode {
   /** 在 Step 内部的唯一 ID（命名空间隔离） */
   id: string;
   /** ComfyUI 节点类型，如 "KSampler", "CheckpointLoaderSimple" */
   type: string;
-  /** 一句话描述，帮助 Agent 理解节点用途 */
-  description?: string;
-  /** 节点分类标签，如 "loaders", "sampling", "conditioning" */
-  category?: string;
-  /**
-   * 标量参数（静态输入值）。
-   * 支持类型：INT(number)、FLOAT(number)、STRING(string)、BOOLEAN(boolean)、COMBO(string)
-   * COMBO 类型值从预定义选项中选择，如 sampler_name: "euler"
-   */
-  widgets?: Record<string, unknown>;
-  /**
-   * 原始 widgets_values 数组（用于往返转换）。
-   * 从 UI 格式导入时保留原始数组顺序，导出时按此顺序输出。
-   * 包含 control_after_generate 等隐式参数。
-   */
+  /** 原始节点 ID（数字，用于往返转换） */
+  _originalId?: number;
+  /** 节点位置 */
+  pos?: [number, number];
+  /** 节点大小 */
+  size?: [number, number];
+  /** 节点标志 */
+  flags?: Record<string, unknown>;
+  /** 执行顺序 */
+  order?: number;
+  /** 节点模式 */
+  mode?: number;
+  /** 输入端口 */
+  inputs?: UIInput[];
+  /** 输出端口 */
+  outputs?: UIOutput[];
+  /** 属性 */
+  properties?: Record<string, unknown>;
+  /** widget 值数组 */
   widgets_values?: unknown[];
   /** 节点标题 */
   title?: string;
-  /** 节点在 Step 内部画布的相对位置 */
-  position?: { x: number; y: number };
+  /** 其他未知字段 */
+  [key: string]: unknown;
 }
 
 /**
@@ -176,6 +181,8 @@ export interface UIGroup {
 }
 
 export interface ComfyUIFormat {
+  id?: string;
+  revision?: number;
   last_node_id: number;
   last_link_id: number;
   nodes: UINode[];
@@ -184,6 +191,8 @@ export interface ComfyUIFormat {
   config: Record<string, unknown>;
   extra: Record<string, unknown>;
   version: number;
+  /** 其他未知字段 */
+  [key: string]: unknown;
 }
 
 /**
