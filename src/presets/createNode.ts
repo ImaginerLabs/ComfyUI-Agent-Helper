@@ -128,7 +128,7 @@ function generateNodeId(preset: NodePreset): string {
 
 /**
  * 构建 widgets_values 数组
- * 顺序：先处理 isWidget 的 inputs，再处理 widgets
+ * 顺序：先处理 isWidget 的 inputs（在对应位置插入 controlWidgets），再处理 widgets
  */
 function buildWidgetsValues(
   preset: NodePreset,
@@ -136,6 +136,7 @@ function buildWidgetsValues(
   warnings: string[]
 ): unknown[] {
   const result: unknown[] = [];
+  const controlWidgets = preset.uiMetadata?.controlWidgets ?? [];
 
   // 1. 处理 isWidget 的输入端口
   const widgetInputs = preset.inputs.filter((input) => input.isWidget);
@@ -148,6 +149,17 @@ function buildWidgetsValues(
       const defaultValue = getDefaultValueForInput(input);
       result.push(defaultValue);
       warnings.push(`Widget "${input.name}" not specified, using default: ${defaultValue}`);
+    }
+
+    // 在当前 widget 之后插入关联的 controlWidgets
+    const associatedControls = controlWidgets.filter((cw) => cw.name.startsWith(input.name));
+    for (const control of associatedControls) {
+      const controlValue = values[control.name];
+      if (controlValue !== undefined) {
+        result.push(controlValue);
+      } else if (control.default !== undefined) {
+        result.push(control.default);
+      }
     }
   }
 

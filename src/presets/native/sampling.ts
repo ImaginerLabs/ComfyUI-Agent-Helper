@@ -120,6 +120,23 @@ export const KSampler: NodePreset = {
     },
   ],
 
+  // === UI 层元数据 ===
+  uiMetadata: {
+    size: [320, 480],
+    properties: {
+      cnr_id: 'comfy-core',
+    },
+    controlWidgets: [
+      {
+        name: 'seed_control_after_generate',
+        type: 'control',
+        label: '种子控制',
+        default: 'randomize',
+        options: ['fixed', 'increment', 'decrement', 'randomize'],
+      },
+    ],
+  },
+
   // === 元数据 ===
   tags: ['sampling', 'denoise', 'core'],
 };

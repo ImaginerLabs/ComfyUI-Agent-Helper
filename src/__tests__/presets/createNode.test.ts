@@ -48,10 +48,22 @@ describe('createNodeFromPreset', () => {
 
       // widgets_values 应该是数组
       expect(Array.isArray(node.widgets_values)).toBe(true);
-      // 长度应该匹配预设定义的 widget 数量
+      // 长度应该匹配预设定义的 widget 数量 + controlWidgets 数量
       const preset = getPreset('KSampler');
-      const expectedLength = preset!.inputs.filter((i) => i.isWidget).length + preset!.widgets.length;
+      const widgetInputCount = preset!.inputs.filter((i) => i.isWidget).length;
+      const widgetCount = preset!.widgets.length;
+      const controlWidgetCount = preset!.uiMetadata?.controlWidgets?.length ?? 0;
+      const expectedLength = widgetInputCount + widgetCount + controlWidgetCount;
       expect(node.widgets_values).toHaveLength(expectedLength);
+
+      // 验证顺序：seed, control_after_generate, steps, cfg, sampler_name, scheduler, denoise
+      expect(node.widgets_values?.[0]).toBe(12345); // seed
+      expect(node.widgets_values?.[1]).toBe('randomize'); // control_after_generate (默认值)
+      expect(node.widgets_values?.[2]).toBe(30); // steps
+      expect(node.widgets_values?.[3]).toBe(8.5); // cfg
+      expect(node.widgets_values?.[4]).toBe('euler'); // sampler_name
+      expect(node.widgets_values?.[5]).toBe('normal'); // scheduler
+      expect(node.widgets_values?.[6]).toBe(1.0); // denoise
     });
   });
 

@@ -148,6 +148,39 @@ export type NodeSourceType = 'native' | 'custom' | 'community';
 export type NodeStability = 'stable' | 'beta' | 'deprecated';
 
 /**
+ * 控件规格（UI 层特有的控件，如 control_after_generate）
+ */
+export interface ControlWidgetSpec {
+  /** 控件名称 */
+  name: string;
+  /** 控件类型 */
+  type: 'control';
+  /** 显示名称 */
+  label: string;
+  /** 默认值 */
+  default?: string;
+  /** 可选项列表 */
+  options?: string[];
+}
+
+/**
+ * UI 层元数据
+ * 包含 UI 格式特有的节点属性
+ */
+export interface UIMetadata {
+  /** 默认节点尺寸 [width, height] */
+  size?: [number, number];
+  /** 节点属性 */
+  properties?: {
+    cnr_id?: string;
+    ver?: string;
+    [key: string]: unknown;
+  };
+  /** 控件参数列表（如 control_after_generate） */
+  controlWidgets?: ControlWidgetSpec[];
+}
+
+/**
  * 节点预设定义
  * 描述一个 ComfyUI 节点的完整规格
  */
@@ -177,6 +210,10 @@ export interface NodePreset {
   // === 输出定义 ===
   /** 输出端口列表 */
   outputs: OutputPortSpec[];
+
+  // === UI 层元数据 ===
+  /** UI 格式特有的节点属性 */
+  uiMetadata?: UIMetadata;
 
   // === 元数据 ===
   /** 是否为 IO 节点（通常无输入或无输出） */
