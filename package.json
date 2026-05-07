@@ -1,6 +1,6 @@
 {
   "name": "@imaginerlabs/comfyui-agent-helper",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "面向 AI Agent 的 ComfyUI 工作流分步构建库，将工作流拆分为可独立设计的 Step 区块",
   "keywords": [
     "comfyui",
