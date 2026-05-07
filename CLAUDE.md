@@ -21,7 +21,7 @@ pnpm format         # Prettier 格式化 src/
 
 运行单个测试文件：
 ```bash
-pnpm vitest run src/__tests__/composer.test.ts
+pnpm vitest run src/__tests__/format-import.test.ts
 ```
 
 ## 发布流程
@@ -29,123 +29,124 @@ pnpm vitest run src/__tests__/composer.test.ts
 发布由 GitHub Actions 自动执行，推送 tag 时触发。
 
 ```bash
-# 1. 本地运行版本命令（自动修改 package.json + 创建 commit + tag）
-npm version patch   # 0.1.0 → 0.1.1（Bug 修复）
-npm version minor   # 0.1.0 → 0.2.0（新功能，向后兼容）
-npm version major   # 0.1.0 → 1.0.0（破坏性变更）
+# 1. 本地运行版本命令
+npm version patch   # Bug 修复
+npm version minor   # 新功能，向后兼容
+npm version major   # 破坏性变更
 
 # 2. 推送 commit 和 tag 到 GitHub
 git push --follow-tags
-
-# 3. CI 自动执行：测试 → 构建 → 发布 npm
 ```
-
-**前提条件**：需要在 GitHub 仓库配置 `NPM_TOKEN` secret（npm automation token）。
 
 ## 技术栈
 
-- **TypeScript 6.0** + **Node >=22**（ESM 模块，`"type": "module"`）
-- **tsup 8.5** 构建（esbuild 底层），**Vitest 4** 测试
-- **零运行时依赖** — 纯 Node.js 库，不需要 Zod/Yup 等校验库
+- **TypeScript 6.0** + **Node >=22**（ESM 模块）
+- **tsup 8.5** 构建，**Vitest 4** 测试
+- **零运行时依赖**
 
 ## 架构
 
-### 核心概念
+### 核心概念：编解码器模式
+
+所有 ComfyUI 格式统一为"工作流"概念，格式只是 IO 层的"编解码器"：
 
 ```
-Workflow
-├── Step A (内部: nodes + internalLinks + 外部 ports)
-├── Step B
-├── Step C
-└── crossLinks: Step A 的输出端口 → Step B 的输入端口
+                    ┌─────────────────────────────────────┐
+                    │         UnifiedWorkflow             │
+                    │   (统一内部表示，保留所有信息)         │
+                    └─────────────────────────────────────┘
+                           ▲                    │
+                    decode │                    │ encode
+                           │                    ▼
+    ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
+    │ API v1   │     │ UI v1.0  │     │ UI v0.4  │     │ Blueprint│
+    │ Codec    │     │ Codec    │     │ Codec    │     │ Codec    │
+    └──────────┘     └──────────┘     └──────────┘     └──────────┘
 ```
-
-- **Workflow**：顶层容器，持有所有 Step 和跨 Step 连接
-- **Step**：功能区块，包含 Node[]、InternalLink[]、InputPort[]、OutputPort[]
-- **Step Port**：对外暴露的 I/O 端口，映射到内部节点的具体输入/输出
-- **InternalLink**：Step 内部连线，格式 `{ from: [nodeId, slotIndex], to: [nodeId, inputName] }`
-- **CrossStepLink**：Step 间连线，从输出端口 → 输入端口
 
 ### 模块结构
 
 ```
 src/
-├── index.ts              # 公共 API 导出（类型 + 函数）
-├── types.ts              # 所有公共类型（StepDefinition, ComfyUIWorkflow 等）
-├── workflow/
-│   ├── workflow.ts       # create/get/reset, 内存存储 Map
-│   ├── import.ts         # importFromJSON 统一入口
-│   ├── format-detector.ts # detectFormat 格式检测
-│   ├── connections.ts    # connectSteps / disconnectSteps（幂等）
-│   ├── types.ts          # Workflow 内部结构 + WorkflowSummary
-│   └── import/
-│       ├── blueprint.ts  # Blueprint 格式导入
-│       ├── ui-format.ts  # UI 格式导入
-│       └── api-format.ts # API 格式导入
-├── step/
-│   ├── step-manager.ts   # addStep / updateStep / removeStep / getStep
-│   └── types.ts
-├── compose/
-│   ├── composer.ts       # compose(): 核心组合引擎，支持 API 和 UI 格式输出
-│   ├── id-resolver.ts    # Step 内 nodeId → 全局唯一 ID（格式: stepId:nodeId）
-│   ├── layout.ts         # 自动布局（简单水平网格排列）
-│   └── types.ts          # IDMapping, ComposeContext
-├── validate/
-│   ├── validator.ts      # 完整性/孤立节点/循环依赖检测
-│   └── types.ts          # ValidationResult
-├── codegen/
-│   └── codegen.ts        # workflowToCode(): 将 Workflow 反生成 TypeScript 代码
-└── utils/
-    ├── id-generator.ts   # 全局 ID 生成（sanitize + counter）
-    └── deep-clone.ts     # JSON.parse(JSON.stringify())
+├── index.ts              # 公共 API 导出
+├── types.ts              # 核心类型定义
+│
+├── codecs/               # 编解码器模块
+│   ├── index.ts          # 统一导入/导出入口
+│   ├── types.ts          # 编解码器类型定义
+│   ├── registry.ts       # 编解码器注册表
+│   │
+│   ├── ui/               # UI 格式编解码器
+│   │   ├── index.ts
+│   │   ├── types.ts      # v1.0/v0.4 差异处理
+│   │   └── decoder.ts    # 解码器和编码器
+│   │
+│   ├── api/              # API 格式编解码器
+│   │   └── decoder.ts
+│   │
+│   └── blueprint/        # Blueprint 格式编解码器
+│       └── decoder.ts
+│
+├── workflow/             # 工作流管理（分步构建 API）
+├── step/                 # Step 管理
+├── compose/              # 组合引擎
+├── validate/             # 校验模块
+├── presets/              # 节点预设
+└── codegen/              # 代码生成
 ```
+
+### 支持的格式
+
+| 格式 ID | 格式族 | 版本 | 连线格式 | 往返支持 |
+|---------|--------|------|---------|---------|
+| `api-v1` | api | 1 | 隐式（inputs 中） | 否（丢失位置信息） |
+| `ui-v0.4` | ui | 0.4 | 数组 `[[id, from, slot, to, slot, type]]` | 是 |
+| `ui-v1.0` | ui | 1.0 | 对象 `[{id, origin_id, ...}]` | 是 |
+| `blueprint-v1` | blueprint | 1 | 对象数组 | 是 |
 
 ### 数据流
 
 ```
-Agent 调用 addStep()    →  存储在 Workflow.steps Map 中
-Agent 调用 connectSteps() → 存储在 Workflow.crossLinks 数组中
-Agent 调用 compose()     →  组合引擎处理:
-  1. ID Resolver 为所有节点分配全局唯一 ID
-  2. 收集所有节点 widgets → inputs 静态参数
-  3. 处理 internalLinks + crossLinks → 连线引用 [globalId, slotIndex]
-  4. 产出 apiFormat 或 uiFormat
-```
+导入流程：
+  JSON → detectFormat() → 确定格式的 Codec → decode() → UnifiedWorkflow
 
-### 多格式导入/导出
-
-支持三种 ComfyUI 格式：
-
-| 格式 | 检测特征 | 用途 |
-|------|---------|------|
-| API | `{ "1": { class_type, inputs } }` | API 执行格式 |
-| UI | `{ nodes: [], links: [[]] }` | 编辑器工作流 |
-| Blueprint | `{ definitions: { subgraphs } }` | 本库原生格式 |
-
-```typescript
-// 导入（自动检测格式）
-importFromJSON(handle, json);
-
-// 导出 UI 格式（可直接导入 ComfyUI 编辑器）
-compose(wf.id, { outputFormat: 'ui' });
-
-// 往返转换：导入 → 导出，完整保留 widgets_values
+导出流程：
+  UnifiedWorkflow → exportWorkflow({ format }) → Codec.encode() → JSON
 ```
 
 ### 关键设计决策
 
-- **API 是纯函数**，不是 class 实例方法 — LLM 通过 function calling 更容易调用独立函数
-- **Step 是声明式一次定义**，不逐步 add — 减少 Agent 调用次数
-- **内存存储**（Map），不持久化 — 工作流在单次会话中构建
-- **ID 命名空间隔离**：Step 内部 ID 自由命名，组合时自动加 `stepId:` 前缀
-- **连线覆盖 Widget**：同一 inputName 同时有 widget 值和连线时，连线优先
-- **往返转换保留原始数据**：`widgets_values` 数组完整保留，包括隐式参数
+1. **编解码器模式**：格式只是 IO 层的"编解码器"，内部表示统一
+2. **信息保留**：导入时保留所有信息，导出时按需丢弃
+3. **版本感知**：UI 格式区分 v0.4 和 v1.0
+4. **往返转换**：`widgets_values` 和元数据完整保留
 
-### compose() 签名注意事项
+## API 使用
 
-`compose()` 接受 `workflowId: string`，不是 `WorkflowHandle` 对象。调用时传 `compose(wf.id)`。
+### 统一编解码器 API（推荐）
 
-`compose()` 的 `outputFormat` 选项：
-- `'api'`（默认）：只输出 API 格式
-- `'ui'`：只输出 UI 格式（可直接导入 ComfyUI 编辑器）
-- `'both'`：同时输出两种格式
+```typescript
+import {
+  importWorkflow,
+  exportWorkflow,
+  detectFormat,
+  createUnifiedWorkflow,
+} from '@imaginerlabs/comfyui-agent-helper';
+
+// 导入
+const result = importWorkflow(json);
+const workflow = result.workflow;
+
+// 导出
+const exported = exportWorkflow(workflow, { format: 'ui-v0.4' });
+```
+
+### 分步构建 API
+
+```typescript
+import { createWorkflow, addStep, connectSteps, compose } from '@imaginerlabs/comfyui-agent-helper';
+
+const wf = createWorkflow();
+addStep(wf.id, { id: 'step1', name: 'Step 1', nodes: [...], internalLinks: [] });
+const result = compose(wf.id);
+```

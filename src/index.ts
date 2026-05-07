@@ -1,4 +1,24 @@
-// 公共类型
+// === 统一编解码器 API ===
+export {
+  importWorkflow,
+  exportWorkflow,
+  detectFormat,
+  getSupportedFormats,
+  createUnifiedWorkflow,
+} from './codecs/index.js';
+
+export type {
+  UnifiedWorkflow,
+  FormatId,
+  FormatInfo,
+  DecodeOptions,
+  EncodeOptions,
+  DecodeResult,
+  EncodeResult,
+  WorkflowCodec,
+} from './codecs/types.js';
+
+// === 公共类型 ===
 export type {
   ComfyDataType,
   StepDefinition,
@@ -15,35 +35,9 @@ export type {
   UILink,
   UIGroup,
   ComfyUIWorkflow,
-  WorkflowHandle,
-  WorkflowOptions,
-  FormatType,
-  ImportOptions,
-  ImportResult,
 } from './types.js';
 
-// Workflow API
-export { createWorkflow, getWorkflowSummary, resetWorkflow } from './workflow/workflow.js';
-export { importFromJSON, detectFormat } from './workflow/import.js';
-export { workflowToCode } from './codegen/codegen.js';
-export type { CodegenOptions } from './codegen/codegen.js';
-export type { Workflow, WorkflowSummary } from './workflow/types.js';
-export { connectSteps, disconnectSteps } from './workflow/connections.js';
-
-// Step API
-export {
-  addStep,
-  updateStep,
-  removeStep,
-  getStep,
-} from './step/step-manager.js';
-export type { AddStepOptions } from './step/step-manager.js';
-
-// Compose API
-export { compose } from './compose/composer.js';
-export type { ComposeOptions, ComposeResult } from './compose/composer.js';
-
-// Validate API
+// === 校验 API ===
 export { validateWorkflow } from './validate/validator.js';
 export type { ValidateWorkflowOptions } from './validate/validator.js';
 export {
@@ -54,7 +48,7 @@ export {
 } from './validate/node-validator.js';
 export type { ValidationResult, ValidationIssue } from './validate/types.js';
 
-// Preset API
+// === 预设 API ===
 export {
   registerPreset,
   getPreset,

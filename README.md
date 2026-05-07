@@ -32,6 +32,31 @@ pnpm add @imaginerlabs/comfyui-agent-helper
 
 ## 快速开始
 
+### 方式一：统一编解码器 API（推荐）
+
+```typescript
+import {
+  importWorkflow,
+  exportWorkflow,
+  detectFormat,
+  createUnifiedWorkflow,
+} from '@imaginerlabs/comfyui-agent-helper';
+
+// 导入现有工作流（自动检测格式）
+const result = importWorkflow(comfyUIJson);
+console.log(result.detectedFormat); // { id: 'ui-v0.4', family: 'ui', ... }
+
+// 操作工作流
+const workflow = result.workflow;
+workflow.name = 'My Modified Workflow';
+
+// 导出为目标格式
+const exported = exportWorkflow(workflow, { format: 'ui-v1.0' });
+// exported.data → ComfyUI UI 格式 JSON
+```
+
+### 方式二：分步构建 API
+
 ```typescript
 import { createWorkflow, addStep, connectSteps, compose } from '@imaginerlabs/comfyui-agent-helper';
 
@@ -42,331 +67,199 @@ const wf = createWorkflow({ name: 'SDXL 文生图' });
 addStep(wf.id, {
   id: 'load-models',
   name: '加载模型',
-  description: '加载 SDXL checkpoint 模型',
   nodes: [
-    {
-      id: 'checkpoint',
-      type: 'CheckpointLoaderSimple',
-      widgets: { ckpt_name: 'sd_xl_base_1.0.safetensors' },
-    },
+    { id: 'checkpoint', type: 'CheckpointLoaderSimple', widgets: { ckpt_name: 'sd_xl_base_1.0.safetensors' } },
   ],
   internalLinks: [],
   outputs: [
     { id: 'model', label: 'MODEL', type: 'MODEL', source: ['checkpoint', 0] },
-    { id: 'clip',  label: 'CLIP',  type: 'CLIP',  source: ['checkpoint', 1] },
-    { id: 'vae',   label: 'VAE',   type: 'VAE',   source: ['checkpoint', 2] },
   ],
 });
 
-// 3. 添加 Step - 提示词编码
-addStep(wf.id, {
-  id: 'encode-prompts',
-  name: '提示词编码',
-  nodes: [
-    { id: 'positive', type: 'CLIPTextEncode', widgets: { text: 'a beautiful landscape' } },
-    { id: 'negative', type: 'CLIPTextEncode', widgets: { text: 'blur, low quality' } },
-  ],
-  internalLinks: [],
-  inputs: [
-    { id: 'clip', label: 'CLIP', type: 'CLIP', target: ['positive', 'clip'] },
-  ],
-  outputs: [
-    { id: 'positive_cond', label: 'Positive', type: 'CONDITIONING', source: ['positive', 0] },
-    { id: 'negative_cond', label: 'Negative', type: 'CONDITIONING', source: ['negative', 0] },
-  ],
-});
-
-// 4. 连接 Step
-connectSteps(wf.id,
-  { stepId: 'load-models',    portId: 'clip' },
-  { stepId: 'encode-prompts', portId: 'clip' }
-);
-
-// 5. 生成最终工作流
+// 3. 生成最终工作流
 const result = compose(wf.id);
-// result.apiFormat → { "1": { class_type: "...", inputs: {...} }, ... }
 ```
 
 ## 核心概念
 
 | 概念 | 说明 |
 |------|------|
-| **Workflow** | 最终产出的完整工作流，包含所有节点、连线 |
-| **Step** | 工作流的功能区块，Agent 的独立设计单元。内部包含节点和连线，对外暴露输入/输出端口 |
+| **UnifiedWorkflow** | 统一的内部工作流表示，能容纳所有 ComfyUI 格式的信息 |
+| **WorkflowCodec** | 编解码器，负责格式转换（API/UI v0.4/UI v1.0/Blueprint） |
+| **Step** | 工作流的功能区块，Agent 的独立设计单元 |
 | **Node** | ComfyUI 节点，对应 `class_type` + `inputs` |
-| **Internal Link** | Step 内部两个节点之间的连线 |
-| **Step Port** | Step 暴露给外部的 I/O 端口，桥接内部节点与外部连线 |
-| **Cross-Step Link** | 两个 Step 之间的连接，从输出端口指向输入端口 |
 
-## API 概览
-
-### Workflow 管理
-
-| 函数 | 说明 |
-|------|------|
-| `createWorkflow(options?)` | 创建一个空工作流，返回 `WorkflowHandle` |
-| `getWorkflowSummary(workflowId)` | 查看工作流的 Step 列表及连接关系 |
-| `resetWorkflow(workflowId)` | 清空所有 Step，重新开始 |
-| `importFromJSON(workflowId, json)` | 从 ComfyUI Blueprint JSON 导入工作流 |
-
-### Step 管理
-
-| 函数 | 说明 |
-|------|------|
-| `addStep(workflowId, definition)` | 添加一个功能区块（声明式，一次传入完整结构） |
-| `updateStep(workflowId, stepId, definition)` | 修改已有 Step 的内容 |
-| `removeStep(workflowId, stepId)` | 移除某个 Step 及其内部所有节点 |
-| `getStep(workflowId, stepId)` | 查看某个 Step 的完整定义 |
-
-### 跨 Step 连接
-
-| 函数 | 说明 |
-|------|------|
-| `connectSteps(workflowId, source, target)` | 将 Step A 的输出端口连接到 Step B 的输入端口 |
-| `disconnectSteps(workflowId, source, target)` | 移除已有的跨 Step 连接 |
-
-### 组合 & 校验
-
-| 函数 | 说明 |
-|------|------|
-| `compose(workflowId, options?)` | 生成 ComfyUI 工作流 JSON，支持 API 和 UI 两种格式 |
-| `validateWorkflow(workflowId, options?)` | 校验工作流完整性（缺失连接、孤立节点等） |
-| `workflowToCode(workflowId, options?)` | 将工作流反向生成为 TypeScript 代码 |
-
-### 格式检测与导入
-
-| 函数 | 说明 |
-|------|------|
-| `detectFormat(json)` | 自动检测 JSON 格式类型（api/ui/blueprint/unknown） |
-| `importFromJSON(handle, json, options?)` | 从 ComfyUI JSON 导入工作流，支持三种格式 |
-
-### 节点校验
-
-| 函数 | 说明 |
-|------|------|
-| `validateNode(node, preset?)` | 校验单个节点的参数完整性 |
-| `validateWidgetValue(widget, value)` | 校验 widget 参数值是否符合类型约束 |
-| `validateInputType(inputType, expectedType)` | 校验输入类型是否匹配 |
-| `isCompatibleType(source, target)` | 检查两个数据类型是否兼容 |
-
-### Preset 预设管理
-
-| 函数 | 说明 |
-|------|------|
-| `registerPreset(preset)` | 注册节点预设到全局注册表 |
-| `getPreset(nodeType)` | 根据 nodeType 获取预设定义 |
-| `hasPreset(nodeType)` | 检查预设是否存在 |
-| `getRegistry()` | 获取全局预设注册表实例 |
-| `createRegistry()` | 创建独立的预设注册表（用于测试隔离） |
-
-## 多格式导入/导出
+## 统一编解码器 API
 
 ### 支持的格式
 
-| 格式 | 检测特征 | 用途 |
-|------|---------|------|
-| **API 格式** | `{ "1": { class_type, inputs } }` | ComfyUI API 执行格式 |
-| **UI 格式** | `{ nodes: [], links: [[]] }` | ComfyUI 界面工作流（可导入编辑器） |
-| **Blueprint** | `{ definitions: { subgraphs } }` | 本库的原生格式 |
+| 格式 ID | 格式族 | 版本 | 说明 |
+|---------|--------|------|------|
+| `api-v1` | api | 1 | ComfyUI API 执行格式 |
+| `ui-v0.4` | ui | 0.4 | ComfyUI UI 格式（links 是数组） |
+| `ui-v1.0` | ui | 1.0 | ComfyUI UI 格式（links 是对象） |
+| `blueprint-v1` | blueprint | 1 | 本库原生格式 |
 
 ### 导入工作流
 
 ```typescript
-import { createWorkflow, importFromJSON, detectFormat } from '@imaginerlabs/comfyui-agent-helper';
-
-const wf = createWorkflow();
+import { importWorkflow, detectFormat } from '@imaginerlabs/comfyui-agent-helper';
 
 // 自动检测格式并导入
-const result = importFromJSON(wf.id, workflowJson);
-console.log(result.detectedFormat); // 'api' | 'ui' | 'blueprint' | 'unknown'
-console.log(result.importedStepIds); // ['imported_workflow']
+const result = importWorkflow(comfyUIJson);
+console.log(result.detectedFormat.id); // 'ui-v0.4' | 'api-v1' | ...
+console.log(result.workflow.steps.size); // Step 数量
 
-// 手动指定格式
-importFromJSON(wf.id, workflowJson, { format: 'ui' });
-
-// 自定义 Step ID 和名称
-importFromJSON(wf.id, workflowJson, {
-  stepId: 'my_custom_step',
-  stepName: 'My Custom Step',
+// 自定义导入选项
+const result2 = importWorkflow(comfyUIJson, {
+  stepId: 'my_step',
+  stepName: 'My Step',
 });
 ```
 
 ### 导出工作流
 
 ```typescript
-import { compose } from '@imaginerlabs/comfyui-agent-helper';
+import { exportWorkflow } from '@imaginerlabs/comfyui-agent-helper';
 
-// 默认只输出 API 格式
-const apiResult = compose(wf.id);
-// { apiFormat: { "1": { class_type, inputs }, ... } }
+// 导出为 API 格式
+const apiResult = exportWorkflow(workflow, { format: 'api-v1' });
 
-// 输出 UI 格式（可直接导入 ComfyUI 编辑器）
-const uiResult = compose(wf.id, { outputFormat: 'ui' });
-// { uiFormat: { nodes: [...], links: [...], ... } }
+// 导出为 UI v0.4 格式（兼容旧版 ComfyUI）
+const uiResult = exportWorkflow(workflow, { format: 'ui-v0.4' });
 
-// 同时输出两种格式
-const bothResult = compose(wf.id, { outputFormat: 'both' });
-// { apiFormat: {...}, uiFormat: {...} }
+// 导出为 UI v1.0 格式（最新版 ComfyUI）
+const uiV1Result = exportWorkflow(workflow, { format: 'ui-v1.0' });
+```
+
+### 检测格式
+
+```typescript
+import { detectFormat } from '@imaginerlabs/comfyui-agent-helper';
+
+const format = detectFormat(json);
+if (format) {
+  console.log(format.id);        // 'ui-v0.4'
+  console.log(format.family);    // 'ui'
+  console.log(format.version);   // '0.4'
+  console.log(format.roundtripCapable); // true
+}
 ```
 
 ### 完整往返转换
 
-导入的工作流可以完整保留所有参数，导出后与原始 JSON 一致：
-
 ```typescript
-import { createWorkflow, importFromJSON, compose } from '@imaginerlabs/comfyui-agent-helper';
+import { importWorkflow, exportWorkflow } from '@imaginerlabs/comfyui-agent-helper';
 
-// 导入 UI 格式工作流
-const wf = createWorkflow();
-importFromJSON(wf.id, originalUIJson);
+// 导入
+const result = importWorkflow(originalJson);
 
-// 导出 UI 格式
-const result = compose(wf.id, { outputFormat: 'ui' });
+// 导出（与原始 JSON 一致）
+const exported = exportWorkflow(result.workflow, { format: 'ui-v0.4' });
 
-// widgets_values 完整保留（包括 control_after_generate 等隐式参数）
-const ksampler = result.uiFormat!.nodes.find(n => n.type === 'KSampler');
-console.log(ksampler?.widgets_values);
-// [123456, 'randomize', 20, 7, 'euler', 'normal', 1] — 完整保留
+// widgets_values 完整保留
+const ui = exported.data as { nodes: Array<{ type: string; widgets_values?: unknown[] }> };
+const ksampler = ui.nodes.find(n => n.type === 'KSampler');
+console.log(ksampler?.widgets_values); // [123456, 'randomize', 20, 7, 'euler', 'normal', 1]
 ```
 
-## 从 Blueprint JSON 导入
+## 分步构建 API
 
-支持从 ComfyUI 的 Blueprint JSON 格式导入已有工作流：
+### Workflow 管理
 
-```typescript
-import { createWorkflow, importFromJSON, compose } from '@imaginerlabs/comfyui-agent-helper';
+| 函数 | 说明 |
+|------|------|
+| `createWorkflow(options?)` | 创建一个空工作流 |
+| `getWorkflowSummary(workflowId)` | 查看工作流的 Step 列表 |
+| `resetWorkflow(workflowId)` | 清空所有 Step |
 
-const wf = createWorkflow();
-importFromJSON(wf.id, blueprintJson); // 自动解析 Subgraph → Step
+### Step 管理
 
-const result = compose(wf.id);
-```
+| 函数 | 说明 |
+|------|------|
+| `addStep(workflowId, definition)` | 添加一个功能区块 |
+| `updateStep(workflowId, stepId, definition)` | 修改已有 Step |
+| `removeStep(workflowId, stepId)` | 移除某个 Step |
+| `getStep(workflowId, stepId)` | 查看某个 Step |
 
-导入引擎自动处理：节点 ID 转换、widget 参数提取、内部连线与端口的映射。
+### 跨 Step 连接
+
+| 函数 | 说明 |
+|------|------|
+| `connectSteps(workflowId, source, target)` | 连接 Step A 的输出到 Step B 的输入 |
+| `disconnectSteps(workflowId, source, target)` | 移除连接 |
+
+### 组合 & 校验
+
+| 函数 | 说明 |
+|------|------|
+| `compose(workflowId, options?)` | 生成 ComfyUI 工作流 JSON |
+| `validateWorkflow(workflowId, options?)` | 校验工作流完整性 |
+| `workflowToCode(workflowId, options?)` | 反向生成 TypeScript 代码 |
 
 ## 节点预设系统
 
-预设系统允许你定义节点的完整规格，包括输入/输出端口、widget 参数约束等，用于校验和智能提示。
-
-### 定义节点预设
-
 ```typescript
-import { registerPreset, type NodePreset } from '@imaginerlabs/comfyui-agent-helper';
+import { registerPreset, validateNode, type NodePreset } from '@imaginerlabs/comfyui-agent-helper';
 
 const ksamplerPreset: NodePreset = {
   type: 'KSampler',
   name: 'KSampler 采样器',
-  description: '核心采样节点，执行去噪过程',
   category: 'sampling',
   inputs: [
-    { name: 'model', type: 'MODEL', label: '模型', required: true },
-    { name: 'positive', type: 'CONDITIONING', label: '正向条件', required: true },
-    { name: 'negative', type: 'CONDITIONING', label: '负向条件', required: true },
-    { name: 'latent_image', type: 'LATENT', label: '潜空间图像', required: true },
+    { name: 'model', type: 'MODEL', required: true },
+    { name: 'positive', type: 'CONDITIONING', required: true },
   ],
   widgets: [
-    { name: 'seed', type: 'INT', label: '种子', default: 0 },
-    { name: 'steps', type: 'INT', label: '步数', default: 20, min: 1, max: 1000 },
-    { name: 'cfg', type: 'FLOAT', label: 'CFG', default: 7.0, min: 0, max: 100 },
-    { name: 'sampler_name', type: 'COMBO', label: '采样器', options: ['euler', 'euler_a', 'dpmpp_2m'] },
-    { name: 'denoise', type: 'FLOAT', label: '去噪强度', default: 1.0, min: 0, max: 1 },
+    { name: 'seed', type: 'INT', default: 0 },
+    { name: 'steps', type: 'INT', default: 20, min: 1, max: 1000 },
   ],
   outputs: [
-    { name: 'LATENT', type: 'LATENT', label: '潜空间输出', slotIndex: 0 },
+    { name: 'LATENT', type: 'LATENT', slotIndex: 0 },
   ],
 };
 
 registerPreset(ksamplerPreset);
 ```
 
-### 使用预设校验节点
-
-```typescript
-import { validateNode, getPreset } from '@imaginerlabs/comfyui-agent-helper';
-
-const preset = getPreset('KSampler');
-const result = validateNode(
-  { id: 'sampler', type: 'KSampler', widgets: { steps: 30 } },
-  preset
-);
-
-if (!result.valid) {
-  console.log('校验失败:', result.issues);
-}
-```
-
-## API 设计原则
-
-面向 LLM Agent 优化：
-
-- **一个函数做一件事**：`addStep()` 只添加 Step，不隐式建立连接
-- **声明式定义 Step**：一次调用传入完整结构，减少 Agent 调用次数
-- **参数扁平化**：避免深层嵌套，TypeScript 类型约束不强制 Agent 感知
-- **错误即指导**：错误消息包含修复建议
-- **操作幂等**：同一参数的重复调用是安全的
-- **零运行时依赖**：纯 TypeScript 实现，无需 Zod/Yup 等校验库
-
 ## 类型系统
 
-库提供完整的 TypeScript 类型定义：
-
 ```typescript
+// 编解码器类型
+import type {
+  UnifiedWorkflow,
+  FormatId,
+  FormatInfo,
+  WorkflowCodec,
+  DecodeOptions,
+  EncodeOptions,
+} from '@imaginerlabs/comfyui-agent-helper';
+
 // 核心类型
 import type {
   StepDefinition,
   StepNode,
   InternalLink,
-  StepInputPort,
-  StepOutputPort,
   CrossStepLink,
   ComfyAPINode,
-  ComfyUIWorkflow,
   ComfyUIFormat,
-  WorkflowHandle,
-} from '@imaginerlabs/comfyui-agent-helper';
-
-// 导入类型
-import type {
-  FormatType,
-  ImportOptions,
-  ImportResult,
 } from '@imaginerlabs/comfyui-agent-helper';
 
 // 预设类型
 import type {
   NodePreset,
-  WidgetSpec,
-  InputPortSpec,
-  OutputPortSpec,
   ValidationMode,
 } from '@imaginerlabs/comfyui-agent-helper';
-
-// 数据类型
-import type { ComfyDataType } from '@imaginerlabs/comfyui-agent-helper';
-// 'MODEL' | 'CLIP' | 'VAE' | 'LATENT' | 'CONDITIONING' | 'IMAGE' | ...
 ```
 
 ## 开发
 
 ```bash
 pnpm install        # 安装依赖
-pnpm build          # 构建（tsup, ESM + CJS 双输出）
-pnpm test           # 运行测试（Vitest）
+pnpm build          # 构建
+pnpm test           # 运行测试
 pnpm test:watch     # 监听模式
-pnpm lint           # ESLint 检查
-pnpm format         # Prettier 格式化
 ```
-
-### 技术栈
-
-| 层面 | 选择 |
-|------|------|
-| 语言 | TypeScript 6.0 |
-| 运行时 | Node.js >= 22 |
-| 构建 | tsup（esbuild） |
-| 包管理 | pnpm |
-| 测试 | Vitest |
-| 输出格式 | ESM + CJS |
 
 ## License
 

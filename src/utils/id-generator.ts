@@ -21,3 +21,10 @@ export function generateGlobalId(stepId: string, nodeId: string): string {
 function sanitizeId(id: string): string {
   return id.replace(/[^a-zA-Z0-9_:-]/g, '_');
 }
+
+/**
+ * 生成工作流 ID
+ */
+export function generateWorkflowId(): string {
+  return `wf_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}

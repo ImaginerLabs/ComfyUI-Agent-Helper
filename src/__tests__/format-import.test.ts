@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-  createWorkflow,
-  importFromJSON,
+  createUnifiedWorkflow,
+  importWorkflow,
+  exportWorkflow,
   detectFormat,
-  compose,
-  addStep,
 } from '../index.js';
 
 // text2image.json 的简化版本（UI 格式）
@@ -122,219 +121,186 @@ const apiFormatJSON = {
 
 describe('detectFormat', () => {
   it('should detect UI format', () => {
-    expect(detectFormat(uiFormatJSON)).toBe('ui');
+    const format = detectFormat(uiFormatJSON);
+    expect(format).not.toBeNull();
+    expect(format?.family).toBe('ui');
   });
 
   it('should detect Blueprint format', () => {
-    expect(detectFormat(blueprintJSON)).toBe('blueprint');
+    const format = detectFormat(blueprintJSON);
+    expect(format).not.toBeNull();
+    expect(format?.family).toBe('blueprint');
   });
 
   it('should detect API format', () => {
-    expect(detectFormat(apiFormatJSON)).toBe('api');
+    const format = detectFormat(apiFormatJSON);
+    expect(format).not.toBeNull();
+    expect(format?.family).toBe('api');
   });
 
-  it('should return unknown for invalid format', () => {
-    expect(detectFormat(null)).toBe('unknown');
-    expect(detectFormat({})).toBe('unknown');
-    expect(detectFormat({ random: 'data' })).toBe('unknown');
+  it('should return null for invalid format', () => {
+    expect(detectFormat(null)).toBeNull();
+    expect(detectFormat({})).toBeNull();
+    expect(detectFormat({ random: 'data' })).toBeNull();
   });
 });
 
-describe('importFromJSON', () => {
+describe('importWorkflow', () => {
   describe('UI format import', () => {
     it('should import UI format as single step', () => {
-      const handle = createWorkflow();
-      const result = importFromJSON(handle, uiFormatJSON);
+      const result = importWorkflow(uiFormatJSON);
 
-      expect(result.detectedFormat).toBe('ui');
-      expect(result.importedStepIds).toHaveLength(1);
-      expect(result.importedStepIds[0]).toBe('imported_workflow');
+      expect(result.detectedFormat.family).toBe('ui');
+      expect(result.workflow.steps.size).toBe(1);
     });
 
     it('should extract nodes from UI format', () => {
-      const handle = createWorkflow();
-      const result = importFromJSON(handle, uiFormatJSON);
+      const result = importWorkflow(uiFormatJSON);
+      const step = Array.from(result.workflow.steps.values())[0];
 
-      // 验证导入了节点
-      expect(result.importedStepIds.length).toBeGreaterThan(0);
+      expect(step.nodes.length).toBe(3);
+      expect(step.nodes.map((n) => n.type)).toContain('CheckpointLoaderSimple');
+      expect(step.nodes.map((n) => n.type)).toContain('KSampler');
+      expect(step.nodes.map((n) => n.type)).toContain('EmptyLatentImage');
     });
 
     it('should use custom step ID and name', () => {
-      const handle = createWorkflow();
-      const result = importFromJSON(handle, uiFormatJSON, {
+      const result = importWorkflow(uiFormatJSON, {
         stepId: 'custom_step',
         stepName: 'Custom Step Name',
       });
 
-      expect(result.importedStepIds).toContain('custom_step');
+      expect(result.workflow.steps.has('custom_step')).toBe(true);
+      expect(result.workflow.steps.get('custom_step')?.name).toBe('Custom Step Name');
     });
 
     it('should parse links correctly', () => {
-      const handle = createWorkflow();
-      const result = importFromJSON(handle, uiFormatJSON);
+      const result = importWorkflow(uiFormatJSON);
+      const step = Array.from(result.workflow.steps.values())[0];
 
-      // 验证导入了步骤
-      expect(result.importedStepIds.length).toBeGreaterThan(0);
+      expect(step.internalLinks.length).toBeGreaterThan(0);
     });
   });
 
   describe('Blueprint format import', () => {
     it('should import Blueprint format', () => {
-      const handle = createWorkflow();
-      const result = importFromJSON(handle, blueprintJSON);
+      const result = importWorkflow(blueprintJSON);
 
-      expect(result.detectedFormat).toBe('blueprint');
-      expect(result.importedStepIds).toContain('Test_Step');
+      expect(result.detectedFormat.family).toBe('blueprint');
+      expect(result.workflow.steps.size).toBe(1);
     });
   });
 
   describe('API format import', () => {
     it('should import API format as single step', () => {
-      const handle = createWorkflow();
-      const result = importFromJSON(handle, apiFormatJSON);
+      const result = importWorkflow(apiFormatJSON);
 
-      expect(result.detectedFormat).toBe('api');
-      expect(result.importedStepIds).toHaveLength(1);
+      expect(result.detectedFormat.family).toBe('api');
+      expect(result.workflow.steps.size).toBe(1);
     });
 
     it('should parse connections from API format', () => {
-      const handle = createWorkflow();
-      const result = importFromJSON(handle, apiFormatJSON);
+      const result = importWorkflow(apiFormatJSON);
+      const step = Array.from(result.workflow.steps.values())[0];
 
-      expect(result.importedStepIds.length).toBeGreaterThan(0);
+      expect(step.internalLinks.length).toBeGreaterThan(0);
     });
   });
 
   describe('Error handling', () => {
-    it('should return empty result for unknown format', () => {
-      const handle = createWorkflow();
-      const result = importFromJSON(handle, { invalid: 'data' });
-      expect(result.detectedFormat).toBe('unknown');
-      expect(result.importedStepIds).toHaveLength(0);
-    });
-
-    it('should throw for invalid workflow handle', () => {
-      expect(() => importFromJSON({ id: 'non-existent' }, uiFormatJSON)).toThrow();
+    it('should throw for unknown format', () => {
+      expect(() => importWorkflow({ invalid: 'data' })).toThrow('Unable to detect workflow format');
     });
   });
 });
 
-describe('compose with UI format output', () => {
-  it('should output only API format by default', () => {
-    const handle = createWorkflow();
-    addStep(handle, {
+describe('exportWorkflow', () => {
+  it('should export to API format', () => {
+    const workflow = createUnifiedWorkflow();
+    workflow.steps.set('step1', {
       id: 'step1',
       name: 'Test Step',
       nodes: [{ id: 'n1', type: 'KSampler', widgets: { seed: 123 } }],
       internalLinks: [],
     });
 
-    const result = compose(handle.id);
-    expect(result.apiFormat).toBeDefined();
-    expect(result.uiFormat).toBeUndefined();
+    const result = exportWorkflow(workflow, { format: 'api-v1' });
+    const data = result.data as Record<string, unknown>;
+
+    expect(data).toBeDefined();
+    expect(typeof data).toBe('object');
   });
 
-  it('should output UI format when outputFormat is "ui"', () => {
-    const handle = createWorkflow();
-    addStep(handle, {
+  it('should export to UI v0.4 format', () => {
+    const workflow = createUnifiedWorkflow();
+    workflow.steps.set('step1', {
       id: 'step1',
       name: 'Test Step',
       nodes: [{ id: 'n1', type: 'KSampler', widgets: { seed: 123 } }],
       internalLinks: [],
     });
 
-    const result = compose(handle.id, { outputFormat: 'ui' });
-    expect(result.uiFormat).toBeDefined();
-    expect(result.uiFormat?.nodes).toBeDefined();
-    expect(result.uiFormat?.links).toBeDefined();
+    const result = exportWorkflow(workflow, { format: 'ui-v0.4' });
+    const data = result.data as { nodes: unknown[]; links: unknown[] };
+
+    expect(data.nodes).toBeDefined();
+    expect(data.links).toBeDefined();
   });
 
-  it('should output both formats when outputFormat is "both"', () => {
-    const handle = createWorkflow();
-    addStep(handle, {
+  it('should export to UI v1.0 format', () => {
+    const workflow = createUnifiedWorkflow();
+    workflow.steps.set('step1', {
       id: 'step1',
       name: 'Test Step',
       nodes: [{ id: 'n1', type: 'KSampler', widgets: { seed: 123 } }],
       internalLinks: [],
     });
 
-    const result = compose(handle.id, { outputFormat: 'both' });
-    expect(result.apiFormat).toBeDefined();
-    expect(result.uiFormat).toBeDefined();
-  });
+    const result = exportWorkflow(workflow, { format: 'ui-v1.0' });
+    const data = result.data as { nodes: unknown[]; links: unknown[] };
 
-  it('should generate valid UI format structure', () => {
-    const handle = createWorkflow();
-    addStep(handle, {
-      id: 'step1',
-      name: 'Test Step',
-      nodes: [
-        { id: 'n1', type: 'CheckpointLoaderSimple', widgets: { ckpt_name: 'model.safetensors' } },
-        { id: 'n2', type: 'KSampler', widgets: { seed: 123, steps: 20 } },
-      ],
-      internalLinks: [{ from: ['n1', 0], to: ['n2', 'model'] }],
-    });
-
-    const result = compose(handle.id, { outputFormat: 'ui' });
-    const ui = result.uiFormat!;
-
-    expect(ui.version).toBe(0.4);
-    expect(ui.nodes.length).toBe(2);
-    expect(ui.links.length).toBe(1);
-    expect(ui.last_node_id).toBeGreaterThan(0);
-    expect(ui.last_link_id).toBeGreaterThan(0);
+    expect(data.nodes).toBeDefined();
+    expect(data.links).toBeDefined();
   });
 });
 
-describe('Round-trip: import -> compose', () => {
-  it('should preserve node types through import and compose', () => {
-    const handle = createWorkflow();
-    importFromJSON(handle, uiFormatJSON);
+describe('Round-trip: import -> export', () => {
+  it('should preserve node types through import and export', () => {
+    const result = importWorkflow(uiFormatJSON);
+    const exportResult = exportWorkflow(result.workflow, { format: 'ui-v0.4' });
+    const ui = exportResult.data as { nodes: Array<{ type: string }> };
 
-    const result = compose(handle.id, { outputFormat: 'ui' });
-    const ui = result.uiFormat!;
-
-    // 验证节点类型被保留
     const nodeTypes = ui.nodes.map((n) => n.type);
     expect(nodeTypes).toContain('CheckpointLoaderSimple');
     expect(nodeTypes).toContain('KSampler');
     expect(nodeTypes).toContain('EmptyLatentImage');
   });
 
-  it('should preserve widgets_values through import and compose', () => {
-    const handle = createWorkflow();
-    importFromJSON(handle, uiFormatJSON);
+  it('should preserve widgets_values through import and export', () => {
+    const result = importWorkflow(uiFormatJSON);
+    const exportResult = exportWorkflow(result.workflow, { format: 'ui-v0.4' });
+    const ui = exportResult.data as { nodes: Array<{ type: string; widgets_values?: unknown[] }> };
 
-    const result = compose(handle.id, { outputFormat: 'ui' });
-    const ui = result.uiFormat!;
-
-    // 验证 KSampler 的 widgets_values 被完整保留
     const ksamplerNode = ui.nodes.find((n) => n.type === 'KSampler');
     expect(ksamplerNode).toBeDefined();
     expect(ksamplerNode?.widgets_values).toEqual([123456789, 'randomize', 20, 7, 'euler', 'normal', 1]);
   });
 
   it('should preserve CheckpointLoaderSimple widgets_values', () => {
-    const handle = createWorkflow();
-    importFromJSON(handle, uiFormatJSON);
+    const result = importWorkflow(uiFormatJSON);
+    const exportResult = exportWorkflow(result.workflow, { format: 'ui-v0.4' });
+    const ui = exportResult.data as { nodes: Array<{ type: string; widgets_values?: unknown[] }> };
 
-    const result = compose(handle.id, { outputFormat: 'ui' });
-    const ui = result.uiFormat!;
-
-    // 验证 CheckpointLoaderSimple 的 widgets_values
     const checkpointNode = ui.nodes.find((n) => n.type === 'CheckpointLoaderSimple');
     expect(checkpointNode).toBeDefined();
     expect(checkpointNode?.widgets_values).toEqual(['model.safetensors']);
   });
 
   it('should preserve EmptyLatentImage widgets_values', () => {
-    const handle = createWorkflow();
-    importFromJSON(handle, uiFormatJSON);
+    const result = importWorkflow(uiFormatJSON);
+    const exportResult = exportWorkflow(result.workflow, { format: 'ui-v0.4' });
+    const ui = exportResult.data as { nodes: Array<{ type: string; widgets_values?: unknown[] }> };
 
-    const result = compose(handle.id, { outputFormat: 'ui' });
-    const ui = result.uiFormat!;
-
-    // 验证 EmptyLatentImage 的 widgets_values
     const latentNode = ui.nodes.find((n) => n.type === 'EmptyLatentImage');
     expect(latentNode).toBeDefined();
     expect(latentNode?.widgets_values).toEqual([512, 512, 1]);

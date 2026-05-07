@@ -1,7 +1,6 @@
 import type { ValidationResult, ValidationIssue } from './types.js';
-import type { Workflow } from '../workflow/types.js';
+import type { UnifiedWorkflow } from '../codecs/types.js';
 import type { ValidationMode } from '../presets/types.js';
-import { getWorkflow } from '../workflow/workflow.js';
 import { getPreset } from '../presets/registry.js';
 import { validateNode } from './node-validator.js';
 
@@ -10,39 +9,28 @@ export interface ValidateWorkflowOptions {
   nodeValidation?: ValidationMode;
 }
 
+/**
+ * 校验 UnifiedWorkflow 的完整性
+ */
 export function validateWorkflow(
-  workflowId: string,
+  workflow: UnifiedWorkflow,
   options?: ValidateWorkflowOptions
 ): ValidationResult {
-  const wf = getWorkflow({ id: workflowId });
-  if (!wf) {
-    return {
-      valid: false,
-      issues: [
-        {
-          severity: 'error',
-          message: `Workflow not found: ${workflowId}`,
-          suggestion: 'Please create the workflow before validating.',
-        },
-      ],
-    };
-  }
-
   const issues: ValidationIssue[] = [];
 
   // a. 完整性检查
-  issues.push(...validateIntegrity(wf));
+  issues.push(...validateIntegrity(workflow));
 
   // b. 孤立节点检测
-  issues.push(...validateOrphanNodes(wf));
+  issues.push(...validateOrphanNodes(workflow));
 
   // c. 循环依赖检测
-  issues.push(...validateCycleDependencies(wf));
+  issues.push(...validateCycleDependencies(workflow));
 
   // d. 节点级别校验
   const nodeMode = options?.nodeValidation ?? 'none';
   if (nodeMode !== 'none') {
-    issues.push(...validateNodes(wf, nodeMode));
+    issues.push(...validateNodes(workflow, nodeMode));
   }
 
   return {
@@ -51,7 +39,7 @@ export function validateWorkflow(
   };
 }
 
-function validateIntegrity(wf: Workflow): ValidationIssue[] {
+function validateIntegrity(wf: UnifiedWorkflow): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   for (const [stepId, step] of wf.steps) {
@@ -131,7 +119,7 @@ function validateIntegrity(wf: Workflow): ValidationIssue[] {
   return issues;
 }
 
-function validateOrphanNodes(wf: Workflow): ValidationIssue[] {
+function validateOrphanNodes(wf: UnifiedWorkflow): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   for (const [stepId, step] of wf.steps) {
@@ -163,7 +151,7 @@ function validateOrphanNodes(wf: Workflow): ValidationIssue[] {
   return issues;
 }
 
-function validateCycleDependencies(wf: Workflow): ValidationIssue[] {
+function validateCycleDependencies(wf: UnifiedWorkflow): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   // Build adjacency list from crossLinks
@@ -219,7 +207,7 @@ function validateCycleDependencies(wf: Workflow): ValidationIssue[] {
   return issues;
 }
 
-function validateNodes(wf: Workflow, mode: ValidationMode): ValidationIssue[] {
+function validateNodes(wf: UnifiedWorkflow, mode: ValidationMode): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   for (const [stepId, step] of wf.steps) {
