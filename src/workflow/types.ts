@@ -1,4 +1,4 @@
-import type { StepDefinition, CrossStepLink, ComfyUIFormat } from '../types.js';
+import type { StepDefinition, CrossStepLink } from '../types.js';
 
 /**
  * Workflow 内部存储结构

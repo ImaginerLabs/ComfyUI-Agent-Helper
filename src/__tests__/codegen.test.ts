@@ -336,18 +336,18 @@ describe('workflowToCode', () => {
       expect(code).toContain("\"text\": 'say \"hello\"'");
     });
 
-    it('节点 title 和 position 可选字段正确生成', () => {
+    it('节点 title 和 pos 可选字段正确生成', () => {
       const wf = createWorkflow();
       addStep(wf, {
         id: 'test_pos',
         name: 'Test Position',
-        nodes: [{ id: '1', type: 'TestNode', title: '我的节点', position: { x: 100, y: 200 } }],
+        nodes: [{ id: '1', type: 'TestNode', title: '我的节点', pos: [100, 200] }],
         internalLinks: [],
       });
       const code = workflowToCode(wf);
 
       expect(code).toMatch(/\btitle: "我的节点"/);
-      expect(code).toContain('position: { x: 100, y: 200 }');
+      expect(code).toContain('pos: [100, 200]');
     });
 
     it('无 widget 节点不生成 widgets 字段', () => {

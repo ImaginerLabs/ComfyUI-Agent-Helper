@@ -129,7 +129,7 @@ export function importFromBlueprint(
         type: bn.type,
         ...(Object.keys(widgets).length > 0 ? { widgets } : {}),
         ...(bn.title ? { title: bn.title } : {}),
-        ...(bn.pos ? { position: { x: bn.pos[0], y: bn.pos[1] } } : {}),
+        ...(bn.pos ? { pos: bn.pos } : {}),
       });
     }
 

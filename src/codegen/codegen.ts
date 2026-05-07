@@ -97,12 +97,6 @@ function emitAddStep(lines: string[], _stepId: string, step: import('../types.js
     if (node.title) {
       lines.push(`      title: ${JSON.stringify(node.title)},`);
     }
-    if (node.description) {
-      lines.push(`      description: ${JSON.stringify(node.description)},`);
-    }
-    if (node.category) {
-      lines.push(`      category: ${JSON.stringify(node.category)},`);
-    }
     if (node.widgets && Object.keys(node.widgets).length > 0) {
       lines.push('      widgets: {');
       for (const [key, val] of Object.entries(node.widgets)) {
@@ -110,8 +104,8 @@ function emitAddStep(lines: string[], _stepId: string, step: import('../types.js
       }
       lines.push('      },');
     }
-    if (node.position) {
-      lines.push(`      position: { x: ${node.position.x}, y: ${node.position.y} },`);
+    if (node.pos) {
+      lines.push(`      pos: [${node.pos[0]}, ${node.pos[1]}],`);
     }
     lines.push('    },');
   }

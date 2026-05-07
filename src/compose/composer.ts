@@ -1,4 +1,4 @@
-import type { ComfyUIWorkflow, ComfyAPINode, ComfyUIFormat, UINode, UIInput, UIOutput, StepNode } from '../types.js';
+import type { ComfyUIWorkflow, ComfyAPINode, ComfyUIFormat, UINode, StepNode } from '../types.js';
 import type { ValidationMode } from '../presets/types.js';
 import type { ValidationIssue } from '../validate/types.js';
 import type { Workflow } from '../workflow/types.js';
@@ -319,10 +319,11 @@ function buildUIFormat(
     const uiNodeId = linkInfo.nodeIdMap.get(globalId)!;
 
     if (originalNode) {
-      // 直接使用原始节点数据，只更新 id
+      // 直接使用原始节点数据，只更新 id 和确保 pos 存在
       const uiNode: UINode = {
         ...originalNode,
         id: uiNodeId,
+        pos: originalNode.pos ?? [0, 0],
       };
       nodes.push(uiNode);
     } else {
@@ -451,12 +452,4 @@ function getLinkType(
   }
 
   return 'UNKNOWN';
-}
-
-/**
- * 从原始节点获取连线类型
- */
-function getLinkTypeFromNode(node: StepNode | null, slot: number): string {
-  if (!node?.outputs?.[slot]) return 'UNKNOWN';
-  return node.outputs[slot].type ?? 'UNKNOWN';
 }

@@ -66,6 +66,8 @@ export interface StepNode {
   outputs?: UIOutput[];
   /** 属性 */
   properties?: Record<string, unknown>;
+  /** widget 值（从 blueprint 导入时使用） */
+  widgets?: Record<string, unknown>;
   /** widget 值数组 */
   widgets_values?: unknown[];
   /** 节点标题 */

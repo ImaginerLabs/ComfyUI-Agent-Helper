@@ -220,9 +220,10 @@ export function validateNode(
   }
 
   // 3. 检查必填参数
+  const widgets = node.widgets as Record<string, unknown> | undefined;
   for (const spec of preset.widgets) {
     if (spec.required) {
-      const value = node.widgets?.[spec.name];
+      const value = widgets?.[spec.name];
       if (value === undefined || value === null) {
         issues.push({
           severity,
