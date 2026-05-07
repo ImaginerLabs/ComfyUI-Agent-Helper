@@ -24,6 +24,24 @@ pnpm format         # Prettier 格式化 src/
 pnpm vitest run src/__tests__/composer.test.ts
 ```
 
+## 发布流程
+
+发布由 GitHub Actions 自动执行，推送 tag 时触发。
+
+```bash
+# 1. 本地运行版本命令（自动修改 package.json + 创建 commit + tag）
+npm version patch   # 0.1.0 → 0.1.1（Bug 修复）
+npm version minor   # 0.1.0 → 0.2.0（新功能，向后兼容）
+npm version major   # 0.1.0 → 1.0.0（破坏性变更）
+
+# 2. 推送 commit 和 tag 到 GitHub
+git push --follow-tags
+
+# 3. CI 自动执行：测试 → 构建 → 发布 npm
+```
+
+**前提条件**：需要在 GitHub 仓库配置 `NPM_TOKEN` secret（npm automation token）。
+
 ## 技术栈
 
 - **TypeScript 6.0** + **Node >=22**（ESM 模块，`"type": "module"`）
