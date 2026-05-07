@@ -23,9 +23,9 @@
 ## 安装
 
 ```bash
-npm install comfyui-agent-helper
+npm install @imaginerlabs/comfyui-agent-helper
 # 或
-pnpm add comfyui-agent-helper
+pnpm add @imaginerlabs/comfyui-agent-helper
 ```
 
 要求 Node.js >= 22。
@@ -33,7 +33,7 @@ pnpm add comfyui-agent-helper
 ## 快速开始
 
 ```typescript
-import { createWorkflow, addStep, connectSteps, compose } from 'comfyui-agent-helper';
+import { createWorkflow, addStep, connectSteps, compose } from '@imaginerlabs/comfyui-agent-helper';
 
 // 1. 创建工作流
 const wf = createWorkflow({ name: 'SDXL 文生图' });
@@ -157,7 +157,7 @@ const result = compose(wf.id);
 支持从 ComfyUI 的 Blueprint JSON 格式导入已有工作流：
 
 ```typescript
-import { createWorkflow, importFromJSON, compose } from 'comfyui-agent-helper';
+import { createWorkflow, importFromJSON, compose } from '@imaginerlabs/comfyui-agent-helper';
 
 const wf = createWorkflow();
 importFromJSON(wf.id, blueprintJson); // 自动解析 Subgraph → Step
@@ -174,7 +174,7 @@ const result = compose(wf.id);
 ### 定义节点预设
 
 ```typescript
-import { registerPreset, type NodePreset } from 'comfyui-agent-helper';
+import { registerPreset, type NodePreset } from '@imaginerlabs/comfyui-agent-helper';
 
 const ksamplerPreset: NodePreset = {
   type: 'KSampler',
@@ -205,7 +205,7 @@ registerPreset(ksamplerPreset);
 ### 使用预设校验节点
 
 ```typescript
-import { validateNode, getPreset } from 'comfyui-agent-helper';
+import { validateNode, getPreset } from '@imaginerlabs/comfyui-agent-helper';
 
 const preset = getPreset('KSampler');
 const result = validateNode(
@@ -245,7 +245,7 @@ import type {
   ComfyAPINode,
   ComfyUIWorkflow,
   WorkflowHandle,
-} from 'comfyui-agent-helper';
+} from '@imaginerlabs/comfyui-agent-helper';
 
 // 预设类型
 import type {
@@ -254,10 +254,10 @@ import type {
   InputPortSpec,
   OutputPortSpec,
   ValidationMode,
-} from 'comfyui-agent-helper';
+} from '@imaginerlabs/comfyui-agent-helper';
 
 // 数据类型
-import type { ComfyDataType } from 'comfyui-agent-helper';
+import type { ComfyDataType } from '@imaginerlabs/comfyui-agent-helper';
 // 'MODEL' | 'CLIP' | 'VAE' | 'LATENT' | 'CONDITIONING' | 'IMAGE' | ...
 ```
 
@@ -285,4 +285,4 @@ pnpm format         # Prettier 格式化
 
 ## License
 
-MIT
+Apache-2.0

@@ -1,6 +1,6 @@
 {
-  "name": "comfyui-agent-helper",
-  "version": "0.1.0",
+  "name": "@imaginerlabs/comfyui-agent-helper",
+  "version": "0.1.1",
   "description": "面向 AI Agent 的 ComfyUI 工作流分步构建库，将工作流拆分为可独立设计的 Step 区块",
   "keywords": [
     "comfyui",
@@ -9,7 +9,18 @@
     "stable-diffusion",
     "node-graph"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ImaginerLabs/ComfyUI-Agent-Helper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ImaginerLabs/ComfyUI-Agent-Helper/issues"
+  },
+  "homepage": "https://github.com/ImaginerLabs/ComfyUI-Agent-Helper#readme",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
