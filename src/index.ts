@@ -49,11 +49,13 @@ export {
 export type { ValidationResult, ValidationIssue } from './validate/types.js';
 
 // === 预设 API ===
-export {
-  registerPreset,
-  getPreset,
-  hasPreset,
-  getRegistry,
-  createRegistry,
-} from './presets/registry.js';
+export { registerPreset, getPreset, hasPreset, getRegistry, createRegistry } from './presets/registry.js';
 export type { NodePreset, ValidationMode } from './presets/types.js';
+
+// === 节点创建 API ===
+export { createNodeFromPreset, createNode } from './presets/createNode.js';
+export type { WidgetValues, CreateNodeOptions, CreateNodeResult } from './presets/createNode.js';
+
+// === 原生预设定义（供自定义节点参考或直接使用）===
+export { nativePresets } from './presets/native/index.js';
+export { KSampler, KSamplerAdvanced } from './presets/native/sampling.js';

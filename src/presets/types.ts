@@ -116,18 +116,26 @@ export interface OutputPortSpec {
  * 支持主分类和子分类，格式为 "主分类" 或 "主分类/子分类"
  */
 export type NodeCategory =
-  | 'basics'        // 基础节点
-  | 'loaders'       // 加载器
-  | 'conditioning'  // 条件编码
-  | 'conditioning/controlnet'  // ControlNet
-  | 'conditioning/gligen'      // GLIGEN
-  | 'conditioning/inpaint'     // 重绘
+  | 'basics' // 基础节点
+  | 'loaders' // 加载器
+  | 'conditioning' // 条件编码
+  | 'conditioning/controlnet' // ControlNet
+  | 'conditioning/gligen' // GLIGEN
+  | 'conditioning/inpaint' // 重绘
   | 'conditioning/style_model' // 风格模型
-  | 'sampling'      // 采样
-  | 'latent'        // 潜空间操作
-  | 'image'         // 图像处理
-  | 'mask'          // 掩码
-  | 'advanced';     // 高级节点
+  | 'sampling' // 采样
+  | 'latent' // 潜空间操作
+  | 'latent/basic' // 潜空间基础操作
+  | 'latent/batch' // 批处理
+  | 'latent/inpaint' // 重绘
+  | 'latent/transform' // 变换
+  | 'image' // 图像处理
+  | 'image/batch' // 图像批处理
+  | 'image/color' // 图像颜色
+  | 'image/transform' // 图像变换
+  | 'image/upscaling' // 图像放大
+  | 'mask' // 掩码
+  | 'advanced'; // 高级节点
 
 /**
  * 节点来源类型

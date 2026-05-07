@@ -4,6 +4,7 @@
  */
 
 import type { NodePreset, NodeCategory } from './types.js';
+import { nativePresets } from './native/index.js';
 
 // ---------------------------------------------------------------------------
 // PresetRegistry 接口定义
@@ -80,11 +81,15 @@ let globalRegistry: PresetRegistry | null = null;
 
 /**
  * 获取全局注册表实例
- * 懒加载初始化
+ * 懒加载初始化，自动注册所有原生预设
  */
 export function getRegistry(): PresetRegistry {
   if (!globalRegistry) {
     globalRegistry = new PresetRegistryImpl();
+    // 自动注册所有原生节点预设
+    for (const preset of nativePresets) {
+      globalRegistry.registerPreset(preset);
+    }
   }
   return globalRegistry;
 }

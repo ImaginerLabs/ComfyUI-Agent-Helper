@@ -168,28 +168,95 @@ console.log(ksampler?.widgets_values); // [123456, 'randomize', 20, 7, 'euler', 
 
 ## 节点预设系统
 
-```typescript
-import { registerPreset, validateNode, type NodePreset } from '@imaginerlabs/comfyui-agent-helper';
+本库内置了所有 ComfyUI 原生节点的预设定义，**导入即可使用**，无需手动注册。
 
-const ksamplerPreset: NodePreset = {
-  type: 'KSampler',
-  name: 'KSampler 采样器',
-  category: 'sampling',
+```typescript
+import { getPreset, hasPreset, nativePresets } from '@imaginerlabs/comfyui-agent-helper';
+
+// 查询内置预设
+hasPreset('KSampler'); // true
+const preset = getPreset('KSampler'); // NodePreset | undefined
+
+// 查看所有内置预设
+console.log(nativePresets.length); // 50+ 原生节点预设
+```
+
+### 基于预设创建节点
+
+使用 `createNodeFromPreset` 基于预设创建节点实例：
+
+```typescript
+import { createNodeFromPreset, createNode } from '@imaginerlabs/comfyui-agent-helper';
+
+// 创建节点（自动填充默认值、校验参数）
+const { node, warnings } = createNodeFromPreset('KSampler', {
+  seed: 12345,
+  steps: 30,
+  cfg: 8.5,
+  sampler_name: 'euler',
+  scheduler: 'normal',
+  denoise: 1.0,
+});
+
+// 简化版（只返回节点）
+const node2 = createNode('KSampler', { seed: 12345, steps: 20 });
+
+// 添加自定义属性
+const { node: node3 } = createNodeFromPreset('KSampler', { seed: 12345 }, {
+  id: 'my_ksampler',
+  pos: [100, 200],
+  title: 'My KSampler',
+  extra: {
+    customField: 'custom value',  // 自定义字段
+    properties: { color: '#ff0000' },
+  },
+});
+
+// 添加到工作流
+workflow.steps.set('step1', {
+  id: 'step1',
+  name: 'Step 1',
+  nodes: [node],
+  internalLinks: [],
+});
+```
+
+**特性：**
+- 自动填充未指定的默认值
+- 参数类型校验（INT/FLOAT/STRING/BOOLEAN/COMBO）
+- 范围校验（min/max）
+- 生成正确顺序的 `widgets_values` 数组
+
+### 注册自定义节点预设
+
+```typescript
+import { registerPreset, type NodePreset } from '@imaginerlabs/comfyui-agent-helper';
+
+const myCustomNode: NodePreset = {
+  type: 'MyCustomNode',
+  name: '我的自定义节点',
+  description: '自定义节点描述',
+  category: 'advanced',
   inputs: [
-    { name: 'model', type: 'MODEL', required: true },
-    { name: 'positive', type: 'CONDITIONING', required: true },
+    { name: 'image', type: 'IMAGE', label: '输入图像', required: true },
   ],
   widgets: [
-    { name: 'seed', type: 'INT', default: 0 },
-    { name: 'steps', type: 'INT', default: 20, min: 1, max: 1000 },
+    { name: 'strength', type: 'FLOAT', label: '强度', default: 1.0, min: 0, max: 2 },
   ],
   outputs: [
-    { name: 'LATENT', type: 'LATENT', slotIndex: 0 },
+    { name: 'output', type: 'IMAGE', label: '输出图像', slotIndex: 0 },
   ],
 };
 
-registerPreset(ksamplerPreset);
+registerPreset(myCustomNode);
 ```
+
+### 预设的作用
+
+预设用于：
+1. **API 格式解码** - 确定节点的输出端口信息
+2. **工作流校验** - 验证节点的输入/输出是否正确
+3. **节点创建** - 基于预设创建节点实例，自动填充默认值
 
 ## 类型系统
 
