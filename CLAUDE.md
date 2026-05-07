@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-`comfyui-agent-helper` 是一个面向 AI Agent（LLM）的 ComfyUI 工作流分步构建库。它让 Agent 将复杂工作流拆分为多个独立 Step（功能区块），最后通过组合引擎自动合并为完整的 ComfyUI JSON。
+`comfyui-agent-helper` 是一个面向 AI Agent 的 ComfyUI 工作流统一编解码库。它将 API、UI、Blueprint 等多种 ComfyUI 格式统一为内部表示，支持完整的往返转换。
 
-**核心价值**：避免 Agent 一次性生成 50+ 节点的完整 JSON 导致高频出错。
+**核心价值**：格式无关的工作流处理，信息零丢失。
 
 ## 常用命令
 
@@ -87,12 +87,9 @@ src/
 │   └── blueprint/        # Blueprint 格式编解码器
 │       └── decoder.ts
 │
-├── workflow/             # 工作流管理（分步构建 API）
-├── step/                 # Step 管理
-├── compose/              # 组合引擎
 ├── validate/             # 校验模块
 ├── presets/              # 节点预设
-└── codegen/              # 代码生成
+└── utils/                # 工具函数
 ```
 
 ### 支持的格式
@@ -123,30 +120,25 @@ src/
 
 ## API 使用
 
-### 统一编解码器 API（推荐）
-
 ```typescript
 import {
   importWorkflow,
   exportWorkflow,
   detectFormat,
   createUnifiedWorkflow,
+  validateWorkflow,
 } from '@imaginerlabs/comfyui-agent-helper';
 
-// 导入
+// 导入工作流（自动检测格式）
 const result = importWorkflow(json);
 const workflow = result.workflow;
 
-// 导出
-const exported = exportWorkflow(workflow, { format: 'ui-v0.4' });
-```
+// 导出为目标格式
+const exported = exportWorkflow(workflow, { format: 'ui-v1.0' });
 
-### 分步构建 API
+// 校验工作流
+const validation = validateWorkflow(workflow);
 
-```typescript
-import { createWorkflow, addStep, connectSteps, compose } from '@imaginerlabs/comfyui-agent-helper';
-
-const wf = createWorkflow();
-addStep(wf.id, { id: 'step1', name: 'Step 1', nodes: [...], internalLinks: [] });
-const result = compose(wf.id);
+// 创建新工作流
+const newWorkflow = createUnifiedWorkflow();
 ```
