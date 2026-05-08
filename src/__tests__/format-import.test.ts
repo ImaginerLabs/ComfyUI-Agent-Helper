@@ -97,28 +97,6 @@ const blueprintJSON = {
   },
 };
 
-// API 格式
-const apiFormatJSON = {
-  '1': {
-    class_type: 'CheckpointLoaderSimple',
-    inputs: {
-      ckpt_name: 'model.safetensors',
-    },
-  },
-  '2': {
-    class_type: 'KSampler',
-    inputs: {
-      model: ['1', 0],
-      seed: 123456789,
-      steps: 20,
-      cfg: 7,
-      sampler_name: 'euler',
-      scheduler: 'normal',
-      denoise: 1,
-    },
-  },
-};
-
 describe('detectFormat', () => {
   it('should detect UI format', () => {
     const format = detectFormat(uiFormatJSON);
@@ -130,12 +108,6 @@ describe('detectFormat', () => {
     const format = detectFormat(blueprintJSON);
     expect(format).not.toBeNull();
     expect(format?.family).toBe('blueprint');
-  });
-
-  it('should detect API format', () => {
-    const format = detectFormat(apiFormatJSON);
-    expect(format).not.toBeNull();
-    expect(format?.family).toBe('api');
   });
 
   it('should return null for invalid format', () => {
@@ -191,22 +163,6 @@ describe('importWorkflow', () => {
     });
   });
 
-  describe('API format import', () => {
-    it('should import API format as single step', () => {
-      const result = importWorkflow(apiFormatJSON);
-
-      expect(result.detectedFormat.family).toBe('api');
-      expect(result.workflow.steps.size).toBe(1);
-    });
-
-    it('should parse connections from API format', () => {
-      const result = importWorkflow(apiFormatJSON);
-      const step = Array.from(result.workflow.steps.values())[0];
-
-      expect(step.internalLinks.length).toBeGreaterThan(0);
-    });
-  });
-
   describe('Error handling', () => {
     it('should throw for unknown format', () => {
       expect(() => importWorkflow({ invalid: 'data' })).toThrow('Unable to detect workflow format');
@@ -215,22 +171,6 @@ describe('importWorkflow', () => {
 });
 
 describe('exportWorkflow', () => {
-  it('should export to API format', () => {
-    const workflow = createUnifiedWorkflow();
-    workflow.steps.set('step1', {
-      id: 'step1',
-      name: 'Test Step',
-      nodes: [{ id: 'n1', type: 'KSampler', widgets: { seed: 123 } }],
-      internalLinks: [],
-    });
-
-    const result = exportWorkflow(workflow, { format: 'api-v1' });
-    const data = result.data as Record<string, unknown>;
-
-    expect(data).toBeDefined();
-    expect(typeof data).toBe('object');
-  });
-
   it('should export to UI v0.4 format', () => {
     const workflow = createUnifiedWorkflow();
     workflow.steps.set('step1', {

@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-`comfyui-agent-helper` 是一个面向 AI Agent 的 ComfyUI 工作流统一编解码库。它将 API、UI、Blueprint 等多种 ComfyUI 格式统一为内部表示，支持完整的往返转换。
+`comfyui-agent-helper` 是一个面向 AI Agent 的 ComfyUI 工作流统一编解码库。它将 UI、Blueprint 等 ComfyUI 格式统一为内部表示，支持完整的往返转换。
 
-**核心价值**：格式无关的工作流处理，信息零丢失。
+**核心价值**：格式无关的工作流处理，信息零丢失，字段顺序完整保留。
 
 ## 常用命令
 
@@ -58,10 +58,10 @@ git push --follow-tags
                            ▲                    │
                     decode │                    │ encode
                            │                    ▼
-    ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
-    │ API v1   │     │ UI v1.0  │     │ UI v0.4  │     │ Blueprint│
-    │ Codec    │     │ Codec    │     │ Codec    │     │ Codec    │
-    └──────────┘     └──────────┘     └──────────┘     └──────────┘
+        ┌──────────┐     ┌──────────┐     ┌──────────┐
+        │ UI v1.0  │     │ UI v0.4  │     │ Blueprint│
+        │ Codec    │     │ Codec    │     │ Codec    │
+        └──────────┘     └──────────┘     └──────────┘
 ```
 
 ### 模块结构
@@ -81,9 +81,6 @@ src/
 │   │   ├── types.ts      # v1.0/v0.4 差异处理
 │   │   └── decoder.ts    # 解码器和编码器
 │   │
-│   ├── api/              # API 格式编解码器
-│   │   └── decoder.ts
-│   │
 │   └── blueprint/        # Blueprint 格式编解码器
 │       └── decoder.ts
 │
@@ -95,7 +92,6 @@ src/
 
 | 格式 ID | 格式族 | 版本 | 连线格式 | 往返支持 |
 |---------|--------|------|---------|---------|
-| `api-v1` | api | 1 | 隐式（inputs 中） | 否（丢失位置信息） |
 | `ui-v0.4` | ui | 0.4 | 数组 `[[id, from, slot, to, slot, type]]` | 是 |
 | `ui-v1.0` | ui | 1.0 | 对象 `[{id, origin_id, ...}]` | 是 |
 | `blueprint-v1` | blueprint | 1 | 对象数组 | 是 |
@@ -113,9 +109,9 @@ src/
 ### 关键设计决策
 
 1. **编解码器模式**：格式只是 IO 层的"编解码器"，内部表示统一
-2. **信息保留**：导入时保留所有信息，导出时按需丢弃
+2. **信息保留**：导入时保留所有信息（包括 `source.raw`），导出时基于原始 JSON 浅拷贝保留字段顺序
 3. **版本感知**：UI 格式区分 v0.4 和 v1.0
-4. **往返转换**：`widgets_values` 和元数据完整保留
+4. **往返转换**：`widgets_values`、`revision`、`id` 等元数据完整保留，字段顺序不变
 
 ## API 使用
 

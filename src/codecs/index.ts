@@ -11,7 +11,6 @@ import { generateWorkflowId } from '../utils/id-generator.js';
 
 // 导入并注册所有编解码器
 import './ui/index.js';
-import './api/index.js';
 import './blueprint/index.js';
 
 /** 格式检测置信度阈值 */

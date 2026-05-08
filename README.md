@@ -1,12 +1,12 @@
 # comfyui-agent-helper
 
-面向 AI Agent 的 ComfyUI 工作流统一编解码库 —— 将 API、UI、Blueprint 等多种 ComfyUI 格式统一为内部表示，支持完整的往返转换。
+面向 AI Agent 的 ComfyUI 工作流统一编解码库 —— 将 UI、Blueprint 等 ComfyUI 格式统一为内部表示，支持完整的往返转换。
 
 ## 为什么需要这个库？
 
 当 AI Agent（Claude、GPT 等）处理 ComfyUI 工作流时，面临核心困境：
 
-- **格式多样**：ComfyUI 有 API 格式、UI 格式（v0.4/v1.0）、Blueprint 等多种格式
+- **格式多样**：ComfyUI 有 UI 格式（v0.4/v1.0）、Blueprint 等多种格式
 - **信息丢失**：不同格式间转换时，`widgets_values`、节点位置等元数据容易丢失
 - **版本差异**：UI 格式 v0.4（links 数组）和 v1.0（links 对象）结构不同
 
@@ -20,10 +20,10 @@
                            ▲                    │
                     decode │                    │ encode
                            │                    ▼
-    ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
-    │ API v1   │     │ UI v1.0  │     │ UI v0.4  │     │ Blueprint│
-    │ Codec    │     │ Codec    │     │ Codec    │     │ Codec    │
-    └──────────┘     └──────────┘     └──────────┘     └──────────┘
+        ┌──────────┐     ┌──────────┐     ┌──────────┐
+        │ UI v1.0  │     │ UI v0.4  │     │ Blueprint│
+        │ Codec    │     │ Codec    │     │ Codec    │
+        └──────────┘     └──────────┘     └──────────┘
 ```
 
 ## 安装
@@ -63,7 +63,7 @@ const exported = exportWorkflow(workflow, { format: 'ui-v1.0' });
 | 概念 | 说明 |
 |------|------|
 | **UnifiedWorkflow** | 统一的内部工作流表示，能容纳所有 ComfyUI 格式的信息 |
-| **WorkflowCodec** | 编解码器，负责格式转换（API/UI v0.4/UI v1.0/Blueprint） |
+| **WorkflowCodec** | 编解码器，负责格式转换（UI v0.4/UI v1.0/Blueprint） |
 | **Step** | 工作流的功能区块，Agent 的独立设计单元 |
 | **Node** | ComfyUI 节点，对应 `class_type` + `inputs` |
 
@@ -71,7 +71,6 @@ const exported = exportWorkflow(workflow, { format: 'ui-v1.0' });
 
 | 格式 ID | 格式族 | 版本 | 说明 | 往返支持 |
 |---------|--------|------|------|---------|
-| `api-v1` | api | 1 | ComfyUI API 执行格式 | 否（丢失位置信息） |
 | `ui-v0.4` | ui | 0.4 | ComfyUI UI 格式（links 是数组） | 是 |
 | `ui-v1.0` | ui | 1.0 | ComfyUI UI 格式（links 是对象） | 是 |
 | `blueprint-v1` | blueprint | 1 | 本库原生格式 | 是 |
@@ -99,9 +98,6 @@ const result2 = importWorkflow(comfyUIJson, {
 
 ```typescript
 import { exportWorkflow } from '@imaginerlabs/comfyui-agent-helper';
-
-// 导出为 API 格式
-const apiResult = exportWorkflow(workflow, { format: 'api-v1' });
 
 // 导出为 UI v0.4 格式（兼容旧版 ComfyUI）
 const uiResult = exportWorkflow(workflow, { format: 'ui-v0.4' });

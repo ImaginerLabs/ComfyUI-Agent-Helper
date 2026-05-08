@@ -10,7 +10,6 @@ import type { ValidationIssue } from '../validate/types.js';
  * 格式标识符
  */
 export type FormatId =
-  | 'api-v1'
   | 'ui-v1.0' // 最新，links 是对象数组
   | 'ui-v0.4' // 旧版，links 是数字数组
   | 'blueprint-v1';

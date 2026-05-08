@@ -87,6 +87,9 @@ export const uiCodec: WorkflowCodec = {
     const targetVersion = options?.format === 'ui-v1.0' ? 'v1.0' : 'v0.4';
     const includeMetadata = options?.includeMetadata ?? true;
 
+    // 获取原始 JSON 作为基础（保留字段顺序和所有未知字段）
+    const raw = workflow.source?.raw as UIFormatJSON | undefined;
+
     // 收集所有节点和连线
     const nodes: UIFormatJSON['nodes'] = [];
     const links: NormalizedLink[] = [];
@@ -192,34 +195,59 @@ export const uiCodec: WorkflowCodec = {
     }
 
     // 构建输出 JSON
-    const output: UIFormatJSON = {
-      nodes,
-      links: targetVersion === 'v1.0'
+    // 如果有原始 JSON，基于它构建以保留字段顺序和未知字段
+    let output: UIFormatJSON;
+
+    if (raw && workflow.source?.format.startsWith('ui-')) {
+      // 浅拷贝原始 JSON，保留字段顺序
+      output = { ...raw };
+
+      // 只更新需要更新的字段
+      output.nodes = nodes;
+      output.links = targetVersion === 'v1.0'
         ? links
-        : links.map((l) => [l.id, l.origin_id, l.origin_slot, l.target_id, l.target_slot, l.type]) as UILinkV0[],
-      version: targetVersion === 'v1.0' ? 1 : 0.4,
-    };
+        : links.map((l) => [l.id, l.origin_id, l.origin_slot, l.target_id, l.target_slot, l.type]) as UILinkV0[];
+      output.version = targetVersion === 'v1.0' ? 1 : 0.4;
 
-    // 保存原始工作流 ID（从 source.raw 或 workflow.id）
-    const rawId = (workflow.source?.raw as { id?: string })?.id;
-    if (rawId) {
-      output.id = rawId;
-    } else if (workflow.id) {
-      output.id = workflow.id;
-    }
+      // 更新元数据字段
+      if (includeMetadata && workflow.ui) {
+        output.last_node_id = Math.max(...Array.from(nodeIdMap.values()), workflow.ui.last_node_id);
+        output.last_link_id = nextLinkId - 1;
+        output.groups = workflow.ui.groups;
+        output.config = workflow.ui.config;
+        output.extra = workflow.ui.extra;
+      }
+    } else {
+      // 没有原始 JSON，使用默认构建顺序
+      output = {
+        nodes,
+        links: targetVersion === 'v1.0'
+          ? links
+          : links.map((l) => [l.id, l.origin_id, l.origin_slot, l.target_id, l.target_slot, l.type]) as UILinkV0[],
+        version: targetVersion === 'v1.0' ? 1 : 0.4,
+      };
 
-    // 保存原始 revision
-    const rawRevision = (workflow.source?.raw as { revision?: number })?.revision;
-    if (rawRevision !== undefined) {
-      output.revision = rawRevision;
-    }
+      // 保存原始工作流 ID（从 source.raw 或 workflow.id）
+      const rawId = (workflow.source?.raw as { id?: string })?.id;
+      if (rawId) {
+        output.id = rawId;
+      } else if (workflow.id) {
+        output.id = workflow.id;
+      }
 
-    if (includeMetadata && workflow.ui) {
-      output.last_node_id = Math.max(...Array.from(nodeIdMap.values()), workflow.ui.last_node_id);
-      output.last_link_id = nextLinkId - 1;
-      output.groups = workflow.ui.groups;
-      output.config = workflow.ui.config;
-      output.extra = workflow.ui.extra;
+      // 保存原始 revision
+      const rawRevision = (workflow.source?.raw as { revision?: number })?.revision;
+      if (rawRevision !== undefined) {
+        output.revision = rawRevision;
+      }
+
+      if (includeMetadata && workflow.ui) {
+        output.last_node_id = Math.max(...Array.from(nodeIdMap.values()), workflow.ui.last_node_id);
+        output.last_link_id = nextLinkId - 1;
+        output.groups = workflow.ui.groups;
+        output.config = workflow.ui.config;
+        output.extra = workflow.ui.extra;
+      }
     }
 
     return {
