@@ -1,6 +1,5 @@
 import type { WorkflowCodec, DecodeResult, EncodeResult, DecodeOptions, EncodeOptions, UnifiedWorkflow } from '../types.js';
 import type { StepDefinition, StepNode, InternalLink, StepInputPort, StepOutputPort, ComfyAPINode, ComfyDataType } from '../../types.js';
-import { getPreset } from '../../presets/registry.js';
 import { generateWorkflowId } from '../../utils/id-generator.js';
 
 /**
@@ -60,7 +59,6 @@ export const apiCodec: WorkflowCodec = {
 
     // 收集外部连接
     const externalInputs = new Map<string, { inputName: string; sourceType: string }>();
-    const externalOutputs = new Map<string, { slot: number; type: string; name: string }>();
 
     for (const [nodeId, apiNode] of Object.entries(apiData)) {
       const widgets: Record<string, unknown> = {};
@@ -95,22 +93,33 @@ export const apiCodec: WorkflowCodec = {
       });
     }
 
-    // 检测外部输出
-    for (const [nodeId, apiNode] of Object.entries(apiData)) {
-      const preset = getPreset(apiNode.class_type);
-      if (preset?.outputs) {
-        for (const output of preset.outputs) {
-          const isUsed = internalLinks.some(
-            (link) => link.from[0] === nodeId && link.from[1] === output.slotIndex
-          );
-          if (!isUsed) {
-            externalOutputs.set(`${nodeId}:${output.slotIndex}`, {
-              slot: output.slotIndex,
-              type: output.type,
-              name: output.name,
-            });
-          }
+    // 检测外部输出：遍历所有节点，找出未被内部连接使用的输出
+    // 由于没有预设信息，我们只能通过分析连接来推断
+    const usedOutputs = new Set<string>();
+    for (const link of internalLinks) {
+      usedOutputs.add(`${link.from[0]}:${link.from[1]}`);
+    }
+
+    // 为每个节点的未使用输出创建外部输出端口
+    // 由于没有预设，我们无法确定输出类型，使用 'unknown'
+    let outputIndex = 0;
+    for (const nodeId of nodeIds) {
+      // 收集该节点作为源的所有已使用 slot
+      const usedSlots = new Set<number>();
+      for (const link of internalLinks) {
+        if (link.from[0] === nodeId) {
+          usedSlots.add(link.from[1] as number);
         }
+      }
+
+      // 如果节点没有任何内部连接输出，创建一个默认输出端口
+      if (usedSlots.size === 0) {
+        outputPorts.push({
+          id: `output_${outputIndex++}`,
+          label: 'output',
+          type: 'unknown' as ComfyDataType,
+          source: [nodeId, 0],
+        });
       }
     }
 
@@ -121,15 +130,6 @@ export const apiCodec: WorkflowCodec = {
         label: info.inputName,
         type: info.sourceType as ComfyDataType,
         target: [key.split(':')[0], info.inputName],
-      });
-    }
-
-    for (const [key, info] of externalOutputs.entries()) {
-      outputPorts.push({
-        id: `output_${outputPorts.length}`,
-        label: info.name,
-        type: info.type as ComfyDataType,
-        source: [key.split(':')[0], info.slot],
       });
     }
 
@@ -174,26 +174,6 @@ export const apiCodec: WorkflowCodec = {
         if (node.widgets) {
           for (const [key, value] of Object.entries(node.widgets)) {
             inputs[key] = value;
-          }
-        }
-        if (node.widgets_values) {
-          // widgets_values 需要通过 preset 映射到具名参数
-          const preset = getPreset(node.type);
-          if (preset) {
-            const widgetNames: string[] = [];
-            for (const inp of preset.inputs) {
-              if (inp.isWidget) widgetNames.push(inp.name);
-            }
-            for (const w of preset.widgets) {
-              widgetNames.push(w.name);
-            }
-            // widgets_values 可能是数组或对象
-            const values = node.widgets_values;
-            if (Array.isArray(values)) {
-              for (let i = 0; i < Math.min(values.length, widgetNames.length); i++) {
-                inputs[widgetNames[i]] = values[i];
-              }
-            }
           }
         }
 

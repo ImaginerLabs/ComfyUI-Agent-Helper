@@ -1,12 +1,11 @@
 import type { ValidationResult, ValidationIssue } from './types.js';
 import type { UnifiedWorkflow } from '../codecs/types.js';
-import type { ValidationMode } from '../presets/types.js';
-import { getPreset } from '../presets/registry.js';
-import { validateNode } from './node-validator.js';
+
+export type { ValidationMode } from './types.js';
 
 export interface ValidateWorkflowOptions {
   /** 节点校验模式 */
-  nodeValidation?: ValidationMode;
+  nodeValidation?: 'none' | 'warn' | 'strict';
 }
 
 /**
@@ -14,7 +13,7 @@ export interface ValidateWorkflowOptions {
  */
 export function validateWorkflow(
   workflow: UnifiedWorkflow,
-  options?: ValidateWorkflowOptions
+  _options?: ValidateWorkflowOptions
 ): ValidationResult {
   const issues: ValidationIssue[] = [];
 
@@ -26,12 +25,6 @@ export function validateWorkflow(
 
   // c. 循环依赖检测
   issues.push(...validateCycleDependencies(workflow));
-
-  // d. 节点级别校验
-  const nodeMode = options?.nodeValidation ?? 'none';
-  if (nodeMode !== 'none') {
-    issues.push(...validateNodes(workflow, nodeMode));
-  }
 
   return {
     valid: issues.filter((i) => i.severity === 'error').length === 0,
@@ -201,28 +194,6 @@ function validateCycleDependencies(wf: UnifiedWorkflow): ValidationIssue[] {
   for (const stepId of wf.steps.keys()) {
     if (!visited.has(stepId)) {
       dfs(stepId);
-    }
-  }
-
-  return issues;
-}
-
-function validateNodes(wf: UnifiedWorkflow, mode: ValidationMode): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-
-  for (const [stepId, step] of wf.steps) {
-    for (const node of step.nodes) {
-      const preset = getPreset(node.type);
-      if (preset) {
-        const nodeIssues = validateNode(node, preset, mode);
-        // 为每个 issue 添加 stepId 上下文
-        for (const issue of nodeIssues) {
-          issues.push({
-            ...issue,
-            stepId,
-          });
-        }
-      }
     }
   }
 

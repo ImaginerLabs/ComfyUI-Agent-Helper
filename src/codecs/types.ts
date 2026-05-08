@@ -3,7 +3,7 @@ import type {
   CrossStepLink,
   UIGroup,
 } from '../types.js';
-import type { ValidationMode } from '../presets/types.js';
+import type { ValidationMode } from '../validate/types.js';
 import type { ValidationIssue } from '../validate/types.js';
 
 /**

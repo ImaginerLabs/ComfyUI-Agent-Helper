@@ -4,7 +4,7 @@
  */
 
 import type { ComfyDataType, StepNode } from '../types.js';
-import type { ValidationMode, WidgetSpec, NodePreset } from '../presets/types.js';
+import type { ValidationMode, WidgetSpec, NodePreset } from './types.js';
 import type { ValidationIssue, ValidationSeverity } from './types.js';
 
 // ---------------------------------------------------------------------------
